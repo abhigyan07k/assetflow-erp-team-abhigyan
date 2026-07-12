@@ -84,16 +84,13 @@ export const bulkImportAssets = async (req: Request, res: Response): Promise<Res
 };
 
 export const getAssets = async (req: Request, res: Response): Promise<Response> => {
-  const { status, type, departmentId } = req.query as unknown as GetAssetsQuery;
-  const where: Prisma.AssetWhereInput = {};
-
-  if (status) where.status = status;
-  if (type) where.type = type;
-  if (departmentId) where.departmentId = departmentId;
-
-  if (req.user!.role === 'EMPLOYEE') {
-    where.assignedToId = req.user!.id;
-  }
+  const { status, type, departmentId } = req.query as GetAssetsQuery;
+  const where: Prisma.AssetWhereInput = {
+    ...(status && { status }),
+    ...(type && { type }),
+    ...(departmentId && { departmentId }),
+    ...(req.user!.role === 'EMPLOYEE' && { assignedToId: req.user!.id }),
+  };
 
   const assets = await prisma.asset.findMany({
     where,
@@ -145,15 +142,15 @@ export const assignAsset = async (req: Request, res: Response): Promise<Response
   const { id: assetId } = req.params as unknown as IdParam;
   const { userId }: AssignAssetBody = req.body;
 
-  const asset = await prisma.asset.findUnique({ where: { id: assetId } });
-  if (!asset) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Asset not found');
-  }
+  const [asset, targetUser] = await Promise.all([
+    prisma.asset.findUnique({ where: { id: assetId } }),
+    prisma.user.findUnique({ where: { id: userId } }),
+  ]);
+
+  if (!asset) throw new ApiError(StatusCodes.NOT_FOUND, 'Asset not found');
   if (asset.status !== 'AVAILABLE') {
     throw new ApiError(StatusCodes.CONFLICT, `Asset is not available for assignment (current status: ${asset.status})`);
   }
-
-  const targetUser = await prisma.user.findUnique({ where: { id: userId } });
   if (!targetUser || targetUser.status === 'SUSPENDED') {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Target user not found or suspended');
   }

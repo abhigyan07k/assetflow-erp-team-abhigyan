@@ -40,42 +40,43 @@ export const actionRequest = async (req: Request, res: Response): Promise<Respon
   const { id: requestId } = req.params as unknown as IdParam;
   const { status, managerNotes }: ActionRequestBody = req.body;
 
-  const request = await prisma.assetRequest.findUnique({ where: { id: requestId } });
-  if (!request) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Asset request not found');
-  }
-  if (request.status !== 'PENDING') {
-    throw new ApiError(StatusCodes.CONFLICT, `Request has already been ${request.status.toLowerCase()}`);
-  }
+  const { updatedRequest, linkedAsset } = await prisma.$transaction(async (tx) => {
+    const request = await tx.assetRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new ApiError(StatusCodes.NOT_FOUND, 'Asset request not found');
+    if (request.status !== 'PENDING') {
+      throw new ApiError(StatusCodes.CONFLICT, `Request has already been ${request.status.toLowerCase()}`);
+    }
 
-  const updatedRequest = await prisma.assetRequest.update({
-    where: { id: requestId },
-    data: {
-      status,
-      managerNotes: managerNotes || null,
-      processedById: req.user!.id,
-    },
-  });
-
-  let linkedAsset = null;
-
-  if (status === 'APPROVED') {
-    const availableAsset = await prisma.asset.findFirst({
-      where: { type: request.assetType, status: 'AVAILABLE' },
+    const updatedRequest = await tx.assetRequest.update({
+      where: { id: requestId },
+      data: {
+        status,
+        managerNotes: managerNotes ?? null,
+        processedById: req.user!.id,
+      },
     });
 
-    if (availableAsset) {
-      linkedAsset = await prisma.asset.update({
-        where: { id: availableAsset.id },
-        data: { assignedToId: request.userId, status: 'ASSIGNED' },
-      });
+    if (status !== 'APPROVED') return { updatedRequest, linkedAsset: null };
 
-      await logAudit({
-        actionType: 'ASSET_ASSIGNED',
-        performedById: req.user!.id,
-        description: `Asset ${linkedAsset.serialNumber} auto-linked to user ID ${request.userId} from approved request #${requestId}`,
-      });
-    }
+    const availableAsset = await tx.asset.findFirst({
+      where: { type: request.assetType, status: 'AVAILABLE' },
+    });
+    if (!availableAsset) return { updatedRequest, linkedAsset: null };
+
+    const linkedAsset = await tx.asset.update({
+      where: { id: availableAsset.id, status: 'AVAILABLE' },
+      data: { assignedToId: request.userId, status: 'ASSIGNED' },
+    });
+
+    return { updatedRequest, linkedAsset };
+  });
+
+  if (linkedAsset) {
+    await logAudit({
+      actionType: 'ASSET_ASSIGNED',
+      performedById: req.user!.id,
+      description: `Asset ${linkedAsset.serialNumber} auto-linked to user ID ${updatedRequest.userId} from approved request #${requestId}`,
+    });
   }
 
   await logAudit({

@@ -56,7 +56,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(Number(PORT), '0.0.0.0', () => {
   logger.info(`AssetFlow backend running on port ${PORT}`);
 });
 
