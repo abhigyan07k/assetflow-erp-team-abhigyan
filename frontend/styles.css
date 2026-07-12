@@ -1,0 +1,8 @@
+/* AssetFlow ERP - Premium Enterprise Design System Stylesheet */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@import url('./styles/variables.css');
+@import url('./styles/layout.css');
+@import url('./styles/components.css');
+@import url('./styles/pages.css');
+@import url('./styles/auth.css');

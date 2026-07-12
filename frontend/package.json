@@ -1,0 +1,24 @@
+{
+  "name": "assetflow-frontend",
+  "version": "1.0.0",
+  "description": "AssetFlow ERP Frontend SPA",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "vite --host 0.0.0.0",
+    "preview": "vite preview --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "erp",
+    "saas",
+    "asset-management"
+  ],
+  "author": "Antigravity",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4"
+  }
+}

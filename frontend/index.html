@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AssetFlow - Enterprise Asset & Resource Management ERP</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+  <!-- Chart.js CDN for beautiful interactive analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="auth-mode">
+
+  <!-- ================= AUTHENTICATION LAYOUT ================= -->
+  <div id="auth-screen" class="auth-layout">
+    <!-- Left Panel: Branding & Stats -->
+    <div class="auth-sidebar">
+      <div class="auth-sidebar-header">
+        <div class="auth-sidebar-logo">
+          <div class="logo-icon">A</div>
+          <span class="auth-logo-text">AssetFlow</span>
+        </div>
+      </div>
+      
+      <div class="auth-branding">
+        <h2>Enterprise Asset & Resource Management Redefined.</h2>
+        <p>Digitize and simplify how your organization tracks physical assets, manages shared resources, handles maintenance workflows, and coordinates audits.</p>
+        
+        <div class="auth-stats">
+          <div class="auth-stat-item">
+            <h4 id="stat-assets-count">1,248+</h4>
+            <p>Assets Tracked</p>
+          </div>
+          <div class="auth-stat-item">
+            <h4 id="stat-active-users">99.8%</h4>
+            <p>Asset Utilization</p>
+          </div>
+        </div>
+      </div>
+      
+      <div>
+        <p style="font-size: 0.875rem; color: rgba(255,255,255,0.6);">© 2026 AssetFlow Inc. All rights reserved.</p>
+      </div>
+    </div>
+
+    <!-- Right Panel: Forms (Login / Signup) -->
+    <div class="auth-form-container">
+      <!-- LOGIN FORM -->
+      <div id="login-form-panel" class="auth-form-card">
+        <h3>Sign In</h3>
+        <p>Access your organization's AssetFlow ERP dashboard.</p>
+        
+        <form id="login-form" onsubmit="event.preventDefault(); handleLogin();">
+          <div class="form-group">
+            <label class="form-label" for="login-email">Corporate Email</label>
+            <div class="form-control-wrapper">
+              <i data-lucide="mail"></i>
+              <input type="email" id="login-email" class="form-control has-icon" placeholder="name@company.com" required value="admin@assetflow.com">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+              <label class="form-label" style="margin-bottom: 0;" for="login-password">Password</label>
+              <a class="auth-form-toggle-link" style="font-size: 0.8125rem;" onclick="handleForgotPassword()">Forgot Password?</a>
+            </div>
+            <div class="form-control-wrapper">
+              <i data-lucide="lock"></i>
+              <input type="password" id="login-password" class="form-control has-icon" placeholder="••••••••" required value="admin123">
+            </div>
+          </div>
+          
+          <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+            <label class="form-check">
+              <input type="checkbox" id="login-remember" checked>
+              <span>Remember me</span>
+            </label>
+          </div>
+          
+          <button type="submit" id="btn-login-submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+            <span>Sign In</span>
+          </button>
+        </form>
+        
+        <p style="margin-top: 2rem; text-align: center;">
+          New Employee? <a class="auth-form-toggle-link" onclick="toggleAuthPanel('signup')">Create an Account</a>
+        </p>
+      </div>
+
+      <!-- SIGNUP FORM -->
+      <div id="signup-form-panel" class="auth-form-card" style="display: none;">
+        <h3>Employee Registration</h3>
+        <p>Register as an employee. Administrator will assign your department and permissions.</p>
+        
+        <form id="signup-form" onsubmit="event.preventDefault(); handleSignup();">
+          <div class="form-group">
+            <label class="form-label" for="signup-name">Full Name</label>
+            <div class="form-control-wrapper">
+              <i data-lucide="user"></i>
+              <input type="text" id="signup-name" class="form-control has-icon" placeholder="John Doe" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="signup-email">Work Email</label>
+            <div class="form-control-wrapper">
+              <i data-lucide="mail"></i>
+              <input type="email" id="signup-email" class="form-control has-icon" placeholder="john.doe@company.com" required>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="signup-password">Password</label>
+            <div class="form-control-wrapper">
+              <i data-lucide="lock"></i>
+              <input type="password" id="signup-password" class="form-control has-icon" placeholder="Minimum 6 characters" required minlength="6">
+            </div>
+          </div>
+          
+          <div class="form-group" style="margin-top: 1.5rem;">
+            <label class="form-check">
+              <input type="checkbox" required>
+              <span style="font-size: 0.8125rem; color: var(--text-muted);">I agree to the AssetFlow terms of service and security policy.</span>
+            </label>
+          </div>
+          
+          <button type="submit" id="btn-signup-submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+            <span>Create Account</span>
+          </button>
+        </form>
+        
+        <p style="margin-top: 2rem; text-align: center;">
+          Already have an account? <a class="auth-form-toggle-link" onclick="toggleAuthPanel('login')">Sign In</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ================= APP LAYOUT SHELL ================= -->
+  <div id="app-shell" class="app-layout" style="display: none;">
+    
+    <!-- Collapsible Sidebar -->
+    <aside class="sidebar" id="app-sidebar">
+      <a href="#" class="sidebar-logo">
+        <div class="logo-icon">A</div>
+        <span class="logo-text">AssetFlow</span>
+      </a>
+      
+      <nav class="sidebar-nav">
+        <button class="nav-item active" onclick="navigate('dashboard')">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" id="nav-org-setup" onclick="navigate('org-setup')">
+          <i data-lucide="building-2"></i>
+          <span>Organization Setup</span>
+        </button>
+        <button class="nav-item" onclick="navigate('assets')">
+          <i data-lucide="package"></i>
+          <span>Assets Directory</span>
+        </button>
+        <button class="nav-item" onclick="navigate('allocation')">
+          <i data-lucide="git-pull-request"></i>
+          <span>Asset Allocation</span>
+        </button>
+        <button class="nav-item" onclick="navigate('booking')">
+          <i data-lucide="calendar"></i>
+          <span>Resource Booking</span>
+        </button>
+        <button class="nav-item" onclick="navigate('maintenance')">
+          <i data-lucide="wrench"></i>
+          <span>Maintenance</span>
+        </button>
+        <button class="nav-item" onclick="navigate('audit')">
+          <i data-lucide="clipboard-check"></i>
+          <span>Audit Cycle</span>
+        </button>
+        <button class="nav-item" onclick="navigate('reports')">
+          <i data-lucide="bar-chart-3"></i>
+          <span>Reports & Analytics</span>
+        </button>
+        <button class="nav-item" onclick="navigate('notifications')">
+          <i data-lucide="bell"></i>
+          <span>Notifications</span>
+          <span class="badge-dot" style="position: relative; margin-left: auto; top: auto; right: auto; display: none;" id="sidebar-unread-indicator"></span>
+        </button>
+        <button class="nav-item" onclick="navigate('settings')">
+          <i data-lucide="settings"></i>
+          <span>Settings</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Role Manager</span>
+          <span class="badge badge-available" style="font-size: 0.65rem; padding: 0.125rem 0.5rem;" id="current-role-badge">Admin</span>
+        </div>
+        <select class="form-control" style="font-size: 0.75rem; padding: 0.375rem 0.5rem; height: auto;" id="role-switcher-select" onchange="changeActiveRole(this.value)">
+          <option value="admin">Admin</option>
+          <option value="manager">Asset Manager</option>
+          <option value="head">Department Head</option>
+          <option value="employee">Employee</option>
+        </select>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <div class="main-wrapper" id="main-workspace">
+      
+      <!-- Top Navigation Bar -->
+      <header class="navbar">
+        <div class="nav-left">
+          <button class="hamburger-btn" onclick="toggleSidebarCollapse()">
+            <i data-lucide="menu"></i>
+          </button>
+          
+          <div class="breadcrumbs">
+            <span id="breadcrumb-company">Main Segment</span>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-active" id="breadcrumb-page">Dashboard</span>
+          </div>
+        </div>
+
+        <div class="nav-center">
+          <div class="search-bar">
+            <i data-lucide="search"></i>
+            <input type="text" class="search-input" id="global-search" placeholder="Global search assets, bookings, departments, users..." onkeyup="handleGlobalSearch(this.value)">
+          </div>
+        </div>
+
+        <div class="nav-right">
+          <!-- Organization Switcher -->
+          <div class="org-switcher" onclick="toggleOrgDropdown()">
+            <i data-lucide="globe" style="width: 1rem; height: 1rem; color: var(--primary);"></i>
+            <span id="current-org-name">Global HQ</span>
+            <i data-lucide="chevron-down" style="width: 0.875rem; height: 0.875rem;"></i>
+          </div>
+
+          <!-- Theme Toggle -->
+          <button class="nav-action-btn" onclick="toggleTheme()" title="Toggle Light/Dark Theme">
+            <i data-lucide="sun" id="theme-icon-light"></i>
+            <i data-lucide="moon" id="theme-icon-dark" style="display: none;"></i>
+          </button>
+
+          <!-- Notification Shortcut -->
+          <button class="nav-action-btn" onclick="navigate('notifications')" title="Notifications">
+            <i data-lucide="bell"></i>
+            <span class="badge-dot" id="nav-unread-dot" style="display: none;"></span>
+          </button>
+
+          <div style="width: 1px; height: 24px; background-color: var(--border);"></div>
+
+          <!-- Profile Drodown Menu -->
+          <div class="user-menu" onclick="toggleProfileDropdown(event)">
+            <div class="avatar-initials" id="user-avatar-initials">AD</div>
+            <div class="user-details">
+              <span class="user-name" id="navbar-user-name">Admin User</span>
+              <span class="user-role" id="navbar-user-role">Administrator</span>
+            </div>
+            <i data-lucide="chevron-down" style="width: 0.875rem; height: 0.875rem; color: var(--text-muted);"></i>
+            
+            <!-- Dropdown Container -->
+            <div class="dropdown-menu" id="profile-dropdown">
+              <div style="padding: 0.75rem 1.25rem;">
+                <span class="user-name" id="dropdown-user-name" style="display: block;">Admin User</span>
+                <span class="user-role" id="dropdown-user-email" style="display: block;">admin@assetflow.com</span>
+              </div>
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" onclick="navigate('settings')"><i data-lucide="settings"></i>Settings</a>
+              <a class="dropdown-item" onclick="navigate('notifications')"><i data-lucide="bell"></i>Inbox</a>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item" onclick="handleLogout()" style="color: var(--danger);"><i data-lucide="log-out"></i>Sign Out</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Content Pages -->
+      <main class="content-area">
+
+        <!-- ================= PAGE 2: EXECUTIVE DASHBOARD ================= -->
+        <section id="page-dashboard" class="page-section active">
+          <div class="page-header">
+            <div class="header-title-area">
+              <h1 id="dashboard-welcome">Asset Overview Dashboard</h1>
+              <p>Real-time analytics, critical warnings, and operations summary.</p>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-primary" id="btn-dashboard-action-trigger" onclick="openQuickActionModal()"><i data-lucide="zap"></i><span>Quick Actions</span></button>
+            </div>
+          </div>
+
+          <!-- KPI Cards Row -->
+          <div class="grid-12" style="margin-bottom: 2rem;">
+            <div class="col-4 card kpi-card">
+              <div class="kpi-data">
+                <span class="kpi-label">Available Assets</span>
+                <span class="kpi-value" id="kpi-available">0</span>
+                <span class="kpi-change positive"><i data-lucide="trending-up"></i> Ready to assign</span>
+              </div>
+              <div class="kpi-icon success"><i data-lucide="check-circle-2"></i></div>
+            </div>
+
+            <div class="col-4 card kpi-card">
+              <div class="kpi-data">
+                <span class="kpi-label">Allocated Assets</span>
+                <span class="kpi-value" id="kpi-allocated">0</span>
+                <span class="kpi-change neutral"><i data-lucide="users"></i> Active deployment</span>
+              </div>
+              <div class="kpi-icon"><i data-lucide="user-check"></i></div>
+            </div>
+
+            <div class="col-4 card kpi-card">
+              <div class="kpi-data">
+                <span class="kpi-label">Maintenance Today</span>
+                <span class="kpi-value" id="kpi-maintenance">0</span>
+                <span class="kpi-change negative" id="kpi-maintenance-change"><i data-lucide="alert-triangle"></i> Pending repairs</span>
+              </div>
+              <div class="kpi-icon danger"><i data-lucide="wrench"></i></div>
+            </div>
+
+            <div class="col-4 card kpi-card">
+              <div class="kpi-data">
+                <span class="kpi-label">Active Bookings</span>
+                <span class="kpi-value" id="kpi-bookings">0</span>
+                <span class="kpi-change positive"><i data-lucide="calendar"></i> Resource slots</span>
+              </div>
+              <div class="kpi-icon warning"><i data-lucide="calendar"></i></div>
+            </div>
+
+            <div class="col-4 card kpi-card">
+              <div class="kpi-data">
+                <span class="kpi-label">Pending Transfers</span>
+                <span class="kpi-value" id="kpi-transfers">0</span>
+                <span class="kpi-change warning"><i data-lucide="arrow-right-left"></i> Awaiting approvals</span>
+              </div>
+              <div class="kpi-icon warning"><i data-lucide="git-pull-request"></i></div>
+            </div>
+
+            <div class="col-4 card kpi-card">
+              <div class="kpi-data">
+                <span class="kpi-label">Overdue Returns</span>
+                <span class="kpi-value" id="kpi-returns" style="color: var(--danger);">0</span>
+                <span class="kpi-change negative"><i data-lucide="clock"></i> Critical flags</span>
+              </div>
+              <div class="kpi-icon danger"><i data-lucide="clock"></i></div>
+            </div>
+          </div>
+
+          <!-- Charts Row -->
+          <div class="grid-12" style="margin-bottom: 2rem;">
+            <div class="col-6 card">
+              <div class="card-title">
+                <span>Asset Utilization Trend</span>
+                <i data-lucide="line-chart" style="color: var(--text-muted); width: 1.25rem;"></i>
+              </div>
+              <div style="height: 260px; position: relative;">
+                <canvas id="chart-utilization"></canvas>
+              </div>
+            </div>
+            
+            <div class="col-6 card">
+              <div class="card-title">
+                <span>Maintenance vs Allocation Frequency</span>
+                <i data-lucide="bar-chart-3" style="color: var(--text-muted); width: 1.25rem;"></i>
+              </div>
+              <div style="height: 260px; position: relative;">
+                <canvas id="chart-maintenance"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Widgets Bottom Row -->
+          <div class="grid-12">
+            <!-- Recent Activity Widget -->
+            <div class="col-4 card">
+              <div class="card-title">
+                <span>Recent System Activities</span>
+                <i data-lucide="history" style="color: var(--text-muted); width: 1.25rem;"></i>
+              </div>
+              <div class="activity-list" id="widget-activity-list">
+                <!-- Injected via JavaScript -->
+              </div>
+            </div>
+
+            <!-- Overdue Returns Widget -->
+            <div class="col-4 card">
+              <div class="card-title">
+                <span>Critical Return Flags</span>
+                <i data-lucide="alert-octagon" style="color: var(--danger); width: 1.25rem;"></i>
+              </div>
+              <div class="table-container" style="border: none;">
+                <table class="custom-table" id="widget-overdue-table">
+                  <!-- Injected via JavaScript -->
+                </table>
+              </div>
+            </div>
+
+            <!-- Quick Action Panel & Notifications widget -->
+            <div class="col-4 card">
+              <div class="card-title">
+                <span>Operational Shortcuts</span>
+                <i data-lucide="zap" style="color: var(--warning); width: 1.25rem;"></i>
+              </div>
+              
+              <div class="quick-actions-grid" style="margin-bottom: 1.5rem;">
+                <div class="quick-action-btn" onclick="openRegisterAssetModal()">
+                  <i data-lucide="plus-circle" style="color: var(--primary);"></i>
+                  <span>Register Asset</span>
+                </div>
+                <div class="quick-action-btn" onclick="openAllocateAssetModal()">
+                  <i data-lucide="git-pull-request" style="color: var(--success);"></i>
+                  <span>Allocate Asset</span>
+                </div>
+                <div class="quick-action-btn" onclick="openBookResourceModal()">
+                  <i data-lucide="calendar" style="color: var(--warning);"></i>
+                  <span>Book Space</span>
+                </div>
+                <div class="quick-action-btn" onclick="openMaintenanceModal()">
+                  <i data-lucide="wrench" style="color: var(--danger);"></i>
+                  <span>Request Repair</span>
+                </div>
+              </div>
+
+              <div class="card-title" style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem; margin-bottom: 0.75rem;">
+                <span>Priority Bulletins</span>
+              </div>
+              <div id="widget-bulletins" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <!-- Bulletins injected via JS -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ================= PAGE 3: ORGANIZATION SETUP ================= -->
+        <section id="page-org-setup" class="page-section">
+          <div class="page-header">
+            <div class="header-title-area">
+              <h1>Organization Setup</h1>
+              <p>Configure departments, custom asset categories, and control the corporate directory.</p>
+            </div>
+          </div>
+
+          <!-- Tabs Panel Navigation -->
+          <div class="tabs-navigation">
+            <button class="tab-btn active" onclick="switchSetupTab(event, 'tab-departments')">Department Management</button>
+            <button class="tab-btn" onclick="switchSetupTab(event, 'tab-categories')">Asset Categories</button>
+            <button class="tab-btn" onclick="switchSetupTab(event, 'tab-employees')">Employee Directory</button>
+          </div>
+
+          <!-- Tab A: Department Management -->
+          <div id="tab-departments" class="tab-pane active">
+            <div class="filter-row">
+              <div class="filter-left">
+                <div class="search-bar" style="max-width: 320px;">
+                  <i data-lucide="search"></i>
+                  <input type="text" class="search-input" id="dept-search" placeholder="Search departments..." onkeyup="renderDepartments()">
+                </div>
+              </div>
+              <div class="filter-right">
+                <button class="btn btn-primary" onclick="openAddDeptModal()"><i data-lucide="plus"></i><span>Add Department</span></button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Department Name</th>
+                    <th>Code</th>
+                    <th>Department Head</th>
+                    <th>Parent Division</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="dept-table-body">
+                  <!-- Injected by Javascript -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab B: Asset Categories -->
+          <div id="tab-categories" class="tab-pane">
+            <div class="filter-row">
+              <div class="filter-left">
+                <p style="color: var(--text-muted); font-size: 0.875rem;">Create specific tags and warranty policies for your physical inventory.</p>
+              </div>
+              <div class="filter-right">
+                <button class="btn btn-primary" onclick="openAddCategoryModal()"><i data-lucide="plus"></i><span>Create Category</span></button>
+              </div>
+            </div>
+
+            <div class="category-grid" id="category-cards-grid">
+              <!-- Injected by Javascript -->
+            </div>
+          </div>
+
+          <!-- Tab C: Employee Directory -->
+          <div id="tab-employees" class="tab-pane">
+            <div class="filter-row">
+              <div class="filter-left">
+                <div class="search-bar" style="max-width: 260px;">
+                  <i data-lucide="search"></i>
+                  <input type="text" class="search-input" id="emp-search" placeholder="Search employees..." onkeyup="renderEmployees()">
+                </div>
+                <select class="form-control" style="max-width: 180px;" id="emp-filter-dept" onchange="renderEmployees()">
+                  <option value="">All Departments</option>
+                  <!-- Injected dynamically -->
+                </select>
+                <select class="form-control" style="max-width: 180px;" id="emp-filter-role" onchange="renderEmployees()">
+                  <option value="">All Roles</option>
+                  <option value="admin">Admin</option>
+                  <option value="manager">Asset Manager</option>
+                  <option value="head">Department Head</option>
+                  <option value="employee">Employee</option>
+                </select>
+              </div>
+              <div class="filter-right">
+                <p style="font-size: 0.8125rem; color: var(--text-muted);">Admin privileges required to assign Roles</p>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Employee Name</th>
+                    <th>Email Address</th>
+                    <th>Department</th>
+                    <th>Current Role</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Privilege Control</th>
+                  </tr>
+                </thead>
+                <tbody id="employee-table-body">
+                  <!-- Injected by Javascript -->
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Employee Directory Pagination -->
+            <div class="pagination">
+              <span class="pagination-info" id="emp-pagination-info">Showing 1-10 of 15 employees</span>
+              <div class="pagination-buttons">
+                <button class="btn btn-secondary btn-sm" id="btn-emp-prev" onclick="handleEmpPageChange(-1)" disabled>Previous</button>
+                <button class="btn btn-secondary btn-sm" id="btn-emp-next" onclick="handleEmpPageChange(1)">Next</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ================= PAGE 4: ASSET DIRECTORY ================= -->
+        <section id="page-assets" class="page-section">
+          <div class="page-header">
+            <div class="header-title-area">
+              <h1>Enterprise Assets Directory</h1>
+              <p>Centrally register, trace, scan, and monitor corporate hardware, devices, and inventory.</p>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-secondary" onclick="openQrScanModal()"><i data-lucide="qr-code"></i><span>QR Scan Finder</span></button>
+              <button class="btn btn-primary" onclick="openRegisterAssetModal()"><i data-lucide="plus"></i><span>Register Asset</span></button>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <div class="filter-left">
+              <div class="search-bar" style="max-width: 220px;">
+                <i data-lucide="search"></i>
+                <input type="text" class="search-input" id="asset-search" placeholder="Search tag, model..." onkeyup="renderAssets()">
+              </div>
+              <select class="form-control" style="max-width: 140px;" id="asset-filter-cat" onchange="renderAssets()">
+                <option value="">Categories</option>
+                <!-- Injected via JS -->
+              </select>
+              <select class="form-control" style="max-width: 130px;" id="asset-filter-status" onchange="renderAssets()">
+                <option value="">Statuses</option>
+                <option value="available">Available</option>
+                <option value="allocated">Allocated</option>
+                <option value="reserved">Reserved</option>
+                <option value="maintenance">Under Maintenance</option>
+                <option value="lost">Lost</option>
+                <option value="retired">Retired</option>
+                <option value="disposed">Disposed</option>
+              </select>
+              <select class="form-control" style="max-width: 130px;" id="asset-filter-condition" onchange="renderAssets()">
+                <option value="">Conditions</option>
+                <option value="new">New</option>
+                <option value="excellent">Excellent</option>
+                <option value="good">Good</option>
+                <option value="fair">Fair</option>
+                <option value="poor">Poor</option>
+              </select>
+            </div>
+
+            <div class="filter-right">
+              <div style="background-color: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px; display: flex;">
+                <button class="btn btn-secondary btn-icon btn-sm" id="btn-asset-view-grid" style="border: none; background: var(--bg-app); color: var(--primary);" onclick="switchAssetView('grid')">
+                  <i data-lucide="grid" style="width: 1rem; height: 1rem;"></i>
+                </button>
+                <button class="btn btn-secondary btn-icon btn-sm" id="btn-asset-view-table" style="border: none; background: transparent;" onclick="switchAssetView('table')">
+                  <i data-lucide="list" style="width: 1rem; height: 1rem;"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grid View Container -->
+          <div class="grid-12" id="asset-grid-container">
+            <!-- Injected by Javascript -->
+          </div>
+
+          <!-- Table View Container -->
+          <div class="table-container" id="asset-table-container" style="display: none;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Asset Tag</th>
+                  <th>Name/Model</th>
+                  <th>Category</th>
+                  <th>Serial Number</th>
+                  <th>Acquisition Cost</th>
+                  <th>Condition</th>
+                  <th>Current Holder</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="asset-table-body">
+                <!-- Injected by Javascript -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+
+        <!-- ================= PAGE 5: ASSET ALLOCATION ================= -->
+        <section id="page-allocation" class="page-section">
+          <div class="page-header">
+            <div class="header-title-area">
+              <h1>Asset Deployments & Allocation</h1>
+              <p>Assign devices to personnel, manage division inventory, and process transfer or return logistics.</p>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-primary" onclick="openAllocateAssetModal()"><i data-lucide="user-plus"></i><span>New Allocation</span></button>
+            </div>
+          </div>
+
+          <div class="grid-12">
+            <!-- Left Side: Active Allocations Table -->
+            <div class="col-8 card">
+              <div class="card-title">Active Deployments</div>
+              
+              <div class="filter-row">
+                <div class="filter-left">
+                  <div class="search-bar" style="max-width: 240px;">
+                    <i data-lucide="search"></i>
+                    <input type="text" class="search-input" id="alloc-search" placeholder="Search employee, asset..." onkeyup="renderAllocations()">
+                  </div>
+                  <label class="form-check" style="margin-left: 0.5rem;">
+                    <input type="checkbox" id="alloc-filter-overdue" onchange="renderAllocations()">
+                    <span style="color: var(--danger); font-weight: 500;">Show Overdue Only</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="table-container" style="margin-bottom: 1.5rem;">
+                <table class="custom-table">
+                  <thead>
+                    <tr>
+                      <th>Asset</th>
+                      <th>Assigned Employee</th>
+                      <th>Department</th>
+                      <th>Allocated Date</th>
+                      <th>Expected Return</th>
+                      <th>Status</th>
+                      <th style="text-align: right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="alloc-table-body">
+                    <!-- Injected by JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right Side: Transfer Request Workflow & Approvals -->
+            <div class="col-4 card">
+              <div class="card-title">
+                <span>Pending Transfer Requests</span>
+                <span class="badge badge-warning" id="transfer-badge-count" style="display: none;">0</span>
+              </div>
+              <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 1rem;">
+                When an employee requests an asset that is currently allocated to someone else, it triggers a transfer approval flow.
+              </p>
+              
+              <div style="display: flex; flex-direction: column; gap: 0.75rem;" id="transfer-list-container">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ================= PAGE 6: RESOURCE BOOKING ================= -->
+        <section id="page-booking" class="page-section">
+          <div class="page-header">
+            <div class="header-title-area">
+              <h1>Shared Resource Bookings</h1>
+              <p>Schedule meeting rooms, fleet vehicles, and common hardware resources with collision avoidance.</p>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-primary" onclick="openBookResourceModal()"><i data-lucide="calendar-plus"></i><span>Reserve Resource</span></button>
+            </div>
+          </div>
+
+          <!-- Type selection filters -->
+          <div class="resource-grid" id="booking-resource-tabs">
+            <!-- Injected via JS -->
+          </div>
+
+          <div class="grid-12">
+            <!-- Main Calendar View -->
+            <div class="col-8">
+              <div class="calendar-view-container">
+                <div class="calendar-header">
+                  <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <h3 id="calendar-month-year">July 2026</h3>
+                    <div style="display: flex; gap: 2px;">
+                      <button class="btn btn-secondary btn-icon btn-sm" onclick="adjustCalendarMonth(-1)"><i data-lucide="chevron-left"></i></button>
+                      <button class="btn btn-secondary btn-icon btn-sm" onclick="adjustCalendarMonth(1)"><i data-lucide="chevron-right"></i></button>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary btn-sm" style="background-color: var(--primary-light); color: var(--primary);" id="btn-booking-view-month" onclick="switchBookingLayout('month')">Calendar View</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-booking-view-timeline" onclick="switchBookingLayout('timeline')">Timeline View</button>
+                  </div>
+                </div>
+                
+                <!-- Month Layout -->
+                <div id="booking-month-layout">
+                  <div class="calendar-grid-header">
+                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                  </div>
+                  <div class="calendar-cells" id="calendar-day-cells">
+                    <!-- Day cells injected via JS -->
+                  </div>
+                </div>
+
+                <!-- Timeline Layout -->
+                <div id="booking-timeline-layout" style="display: none; padding: 1.5rem;">
+                  <div style="display: flex; flex-direction: column; gap: 1rem;" id="timeline-slots-container">
+                    <!-- Dynamic slots injected via JS -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Booking list & Reminders -->
+            <div class="col-4 card">
+              <div class="card-title">Upcoming Bookings</div>
+              <div style="display: flex; flex-direction: column; gap: 0.75rem;" id="booking-upcoming-list">
+                <!-- Bookings items injected via JS -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ================= PAGE 7: MAINTENANCE ================= -->
+        <section id="page-maintenance" class="page-section">
+          <div class="page-header">
+            <div class="header-title-area">
+              <h1>Maintenance & Repairs</h1>
+              <p>Initiate repair tasks, assign technicians, trace statuses, and review hardware work histories.</p>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-primary" onclick="openMaintenanceModal()"><i data-lucide="wrench"></i><span>Request Maintenance</span></button>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <div class="filter-left">
+              <div class="search-bar" style="max-width: 240px;">
+                <i data-lucide="search"></i>
+                <input type="text" class="search-input" id="maint-search" placeholder="Search tickets, assets..." onkeyup="renderMaintenance()">
+              </div>
+              <select class="form-control" style="max-width: 160px;" id="maint-filter-priority" onchange="renderMaintenance()">
+                <option value="">All Priorities</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+
+            <div class="filter-right">
+              <div style="background-color: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px; display: flex;">
+                <button class="btn btn-secondary btn-icon btn-sm" id="btn-maint-view-kanban" style="border: none; background: var(--bg-app); color: var(--primary);" onclick="switchMaintView('kanban')">
+                  <span>Kanban</span>
+                </button>
+                <button class="btn btn-secondary btn-icon btn-sm" id="btn-maint-view-table" style="border: none; background: transparent;" onclick="switchMaintView('table')">
+                  <span>Table List</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Kanban View -->
+          <div class="kanban-board" id="maint-kanban-board">
+            <!-- Column 1: Pending -->
+            <div class="kanban-column">
+              <div class="kanban-column-header">
+                <span class="column-title"><span class="badge-dot-indicator" style="background-color: var(--warning);"></span>Pending Approval</span>
+                <span class="column-count" id="count-maint-pending">0</span>
+              </div>
+              <div class="kanban-cards-container" id="col-maint-pending">
+                <!-- Cards injected via JS -->
+              </div>
+            </div>
+
+            <!-- Column 2: Approved -->
+            <div class="kanban-column">
+              <div class="kanban-column-header">
+                <span class="column-title"><span class="badge-dot-indicator" style="background-color: var(--primary);"></span>Approved</span>
+                <span class="column-count" id="count-maint-approved">0</span>
+              </div>
+              <div class="kanban-cards-container" id="col-maint-approved">
+                <!-- Cards injected via JS -->
+              </div>
+            </div>
+
+            <!-- Column 3: Technician Assigned -->
+            <div class="kanban-column">
+              <div class="kanban-column-header">
+                <span class="column-title"><span class="badge-dot-indicator" style="background-color: var(--secondary);"></span>Tech Assigned</span>
+                <span class="column-count" id="count-maint-assigned">0</span>
+              </div>
+              <div class="kanban-cards-container" id="col-maint-assigned">
+                <!-- Cards injected via JS -->
+              </div>
+            </div>
+
+            <!-- Column 4: In Progress -->
+            <div class="kanban-column">
+              <div class="kanban-column-header">
+                <span class="column-title"><span class="badge-dot-indicator" style="background-color: var(--warning);"></span>In Progress</span>
+                <span class="column-count" id="count-maint-progress">0</span>
+              </div>
+              <div class="kanban-cards-container" id="col-maint-progress">
+                <!-- Cards injected via JS -->
+              </div>
+            </div>
+
+            <!-- Column 5: Resolved -->
+            <div class="kanban-column">
+              <div class="kanban-column-header">
+                <span class="column-title"><span class="badge-dot-indicator" style="background-color: var(--success);"></span>Resolved</span>
+                <span class="column-count" id="count-maint-resolved">0</span>
+              </div>
+              <div class="kanban-cards-container" id="col-maint-resolved">
+                <!-- Cards injected via JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Table List View (Hidden by default) -->
+          <div class="table-container" id="maint-table-container" style="display: none;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Ticket ID</th>
+                  <th>Asset Target</th>
+                  <th>Issue Details</th>
+                  <th>Priority</th>
+                  <th>Tech Assigned</th>
+                  <th>Workflow Status</th>
+                  <th>Raised Date</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="maint-table-body">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+
+        <!-- ================= PAGE 8: AUDIT CYCLE ================= -->
+        <section id="page-audit" class="page-section">
+          <div class="page-header">
+            <div class="header-title-area">
+              <h1>Inventory Audit Cycles</h1>
+              <p>Execute structured physical verification cycles, assign auditors, and auto-flag discrepancies.</p>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-primary" onclick="openStartAuditModal()"><i data-lucide="shield-check"></i><span>Schedule Audit</span></button>
+            </div>
+          </div>
+
+          <div class="grid-12">
+            <!-- Left Side: List of Audit Cycles -->
+            <div class="col-5 card">
+              <div class="card-title">Scheduled Audit Cycles</div>
+              <div class="table-container">
+                <table class="custom-table">
+                  <thead>
+                    <tr>
+                      <th>Cycle Title</th>
+                      <th>Scope / Department</th>
+                      <th>Auditor</th>
+                      <th>Progress</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="audit-cycles-table-body" class="interactive-rows">
+                    <!-- Injected via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right Side: Active Auditor Verification & Discrepancies -->
+            <div class="col-7 card" id="audit-verification-card">
+              <div class="card-title" id="audit-active-title">Verification Checklist (No active cycle selected)</div>
+              <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                Select a cycle from the left to view assets, verify presence, flag missing inventory, or compile reports.
+              </p>
+              
+              <div id="audit-checklist-placeholder" class="empty-state">
+                <div class="empty-state-icon"><i data-lucide="clipboard-list"></i></div>
+                <h3>Ready to Audit</h3>
+                <p>Click on any audit cycle listed on the left panel to load the real-time checklist and start logging verification states.</p>
+              </div>
+
+              <!-- Active Audit Board (Visible when a cycle is clicked) -->
+              <div id="audit-checklist-active" style="display: none;">
+                <div class="filter-row" style="background-color: var(--bg-app); padding: 0.75rem 1rem; border-radius: var(--radius-sm);">
+                  <div style="font-size: 0.8125rem;">
+                    <strong>Scope:</strong> <span id="audit-active-scope">Finance</span> |
+                    <strong>Auditor:</strong> <span id="audit-active-auditor">Sarah Connor</span>
+                  </div>
+                  <div>
+                    <button class="btn btn-danger btn-sm" onclick="closeAuditCycleTrigger()" id="btn-close-audit">Close & Lock Cycle</button>
+                  </div>
+                </div>
+
+                <div class="table-container" style="max-height: 280px; overflow-y: auto; margin-top: 1rem; margin-bottom: 1.5rem;">
+                  <table class="custom-table">
+                    <thead>
+                      <tr>
+                        <th>Asset Tag</th>
+                        <th>Asset Name</th>
+                        <th>Location</th>
+                        <th>Condition</th>
+                        <th>Verify State</th>
+                      </tr>
+                    </thead>
+                    <tbody id="audit-verification-tbody">
+                      <!-- Injected via JS -->
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="card" style="border: 1px dashed var(--danger); background-color: var(--danger-light); padding: 1rem;" id="audit-discrepancy-card">
+                  <div style="display: flex; gap: 0.75rem;">
+                    <i data-lucide="alert-triangle" style="color: var(--danger); flex-shrink: 0;"></i>
+                    <div>
+                      <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--text-main);">Discrepancy Flag Report</h4>
+                      <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;" id="audit-discrepancy-text">
+                        Currently: 0 Missing and 0 Damaged assets flagged. Closing this cycle will auto-transition missing items to 'Lost'.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ================= PAGE 9: REPORTS & ANALYTICS ================= -->
+        <section id="page-reports" class="page-section">
+          <div class="page-header">
+            <div class="header-title-area">
+              <h1>Executive Analytics & Reports</h1>
+              <p>Export compliance data, analyze equipment lifetimes, and evaluate department usage allocations.</p>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-secondary btn-sm" onclick="triggerExport('PDF')"><i data-lucide="file-text"></i><span>PDF Export</span></button>
+              <button class="btn btn-secondary btn-sm" onclick="triggerExport('Excel')"><i data-lucide="file-spreadsheet"></i><span>Excel Export</span></button>
+              <button class="btn btn-secondary btn-sm" onclick="triggerExport('CSV')"><i data-lucide="file-code"></i><span>CSV Export</span></button>
+            </div>
+          </div>
+
+          <div class="grid-12" style="margin-bottom: 1.5rem;">
+            <!-- Utilization chart large -->
+            <div class="col-8 card">
+              <div class="card-title">Department Allocation Dynamics</div>
+              <div style="height: 280px; position: relative;">
+                <canvas id="chart-reports-dept-alloc"></canvas>
+              </div>
+            </div>
+
+            <!-- Heatmap block -->
+            <div class="col-4 card">
+              <div class="card-title">Resource Booking Heatmap</div>
+              <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1.25rem;">Visualizing peak slot occupancies across hours of the day (00:00 - 23:00).</p>
+              
+              <div class="heatmap-grid" id="analytics-heatmap">
+                <!-- Injected via JS -->
+              </div>
+              <div class="heatmap-legend">
+                <span>Idle</span>
+                <span class="heatmap-legend-box level-0"></span>
+                <span class="heatmap-legend-box level-1"></span>
+                <span class="heatmap-legend-box level-2"></span>
+                <span class="heatmap-legend-box level-3"></span>
+                <span class="heatmap-legend-box level-4"></span>
+                <span>Peak</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-12">
+            <div class="col-4 card">
+              <div class="card-title">Maintenance Frequency by Category</div>
+              <div style="height: 200px; position: relative;">
+                <canvas id="chart-reports-maint-freq"></canvas>
+              </div>
+            </div>
+
+            <div class="col-4 card">
+              <div class="card-title">Predictive Hardware Retirement (Next 12 Mos)</div>
+              <div style="height: 200px; position: relative;">
+                <canvas id="chart-reports-retirement"></canvas>
+              </div>
+            </div>
+
+            <div class="col-4 card" style="display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div class="card-title">Idle Asset Warning List</div>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Assets sitting active but unallocated for > 60 days.</p>
+                <div class="table-container" style="border: none;">
+                  <table class="custom-table" style="font-size: 0.75rem;" id="table-reports-idle-assets">
+                    <!-- Injected via JS -->
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ================= PAGE 10: NOTIFICATIONS & ACTIVITY ================= -->
+        <section id="page-notifications" class="page-section">
+          <div class="page-header">
+            <div class="header-title-area">
+              <h1>Notification Center & Activity Logs</h1>
+              <p>Review system event histories, employee allocations logs, and compliance audits trail.</p>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-secondary" onclick="markAllNotificationsAsRead()"><i data-lucide="check-check"></i><span>Mark All Read</span></button>
+            </div>
+          </div>
+
+          <div class="tabs-navigation">
+            <button class="tab-btn active" onclick="switchNotificationTab(event, 'tab-notif-inbox')">System Notifications</button>
+            <button class="tab-btn" onclick="switchNotificationTab(event, 'tab-audit-logs')">System Audit Trail</button>
+          </div>
+
+          <!-- Notification Inbox -->
+          <div id="tab-notif-inbox" class="tab-pane active">
+            <div class="filter-row">
+              <div class="filter-left">
+                <select class="form-control" style="max-width: 180px;" id="notif-filter-type" onchange="renderNotificationsPage()">
+                  <option value="">All Types</option>
+                  <option value="Asset Assigned">Asset Assigned</option>
+                  <option value="Transfer Approved">Transfer Approved</option>
+                  <option value="Booking Confirmed">Booking Confirmed</option>
+                  <option value="Booking Reminder">Booking Reminder</option>
+                  <option value="Maintenance Approved">Maintenance Approved</option>
+                  <option value="Maintenance Rejected">Maintenance Rejected</option>
+                  <option value="Audit Flagged">Audit Flagged</option>
+                  <option value="Overdue Return">Overdue Return</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;" id="notifications-inbox-list">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+
+          <!-- Audit Logs Trace Table -->
+          <div id="tab-audit-logs" class="tab-pane">
+            <div class="filter-row">
+              <div class="filter-left">
+                <div class="search-bar" style="max-width: 260px;">
+                  <i data-lucide="search"></i>
+                  <input type="text" class="search-input" id="audit-log-search" placeholder="Search operator, event..." onkeyup="renderAuditLogs()">
+                </div>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Operator</th>
+                    <th>Action Event</th>
+                    <th>Entity Type</th>
+                    <th>Details</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-logs-table-body">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ================= SYSTEM SETTINGS ================= -->
+        <section id="page-settings" class="page-section">
+          <div class="page-header">
+            <div class="header-title-area">
+              <h1>System Settings</h1>
+              <p>Adjust ERP system variables, user details, notifications settings, and database backups.</p>
+            </div>
+          </div>
+
+          <div class="grid-12">
+            <div class="col-8 card">
+              <div class="card-title">User Account Customization</div>
+              <form id="settings-profile-form" onsubmit="event.preventDefault(); saveUserSettings();" style="margin-bottom: 2rem;">
+                <div class="form-control-row">
+                  <div class="form-group">
+                    <label class="form-label" for="settings-fullname">Full Display Name</label>
+                    <input type="text" class="form-control" id="settings-fullname" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="settings-email">Corporate Email Address (Read-only)</label>
+                    <input type="email" class="form-control" id="settings-email" readonly disabled style="background-color: var(--bg-app); opacity: 0.7;">
+                  </div>
+                </div>
+
+                <div class="form-control-row">
+                  <div class="form-group">
+                    <label class="form-label" for="settings-dept">Assigned Department</label>
+                    <input type="text" class="form-control" id="settings-dept" readonly disabled style="background-color: var(--bg-app); opacity: 0.7;">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="settings-role">Security Role Permissions</label>
+                    <input type="text" class="form-control" id="settings-role" readonly disabled style="background-color: var(--bg-app); opacity: 0.7;">
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Save Profile Settings</button>
+              </form>
+
+              <div class="card-title" style="border-top: 1px solid var(--border); padding-top: 1.5rem;">SaaS Preferences</div>
+              <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div>
+                    <h4 style="font-size: 0.875rem; font-weight: 600;">Email notifications alert digest</h4>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.125rem;">Receive morning email summaries of overdue allocations, active requests, and maintenance.</p>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" checked>
+                    <span class="slider"></span>
+                  </label>
+                </div>
+
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div>
+                    <h4 style="font-size: 0.875rem; font-weight: 600;">Strict Booking Collisions Validation</h4>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.125rem;">Prevent reservations from compiling if resource overlaps by even 1 minute.</p>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="settings-strict-booking" checked>
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-4 card" style="display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div class="card-title">Database Storage & Simulation</div>
+                <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                  AssetFlow runs client-side inside local storage. If you want to reset all mock databases back to defaults, click below.
+                </p>
+                <button class="btn btn-danger btn-sm" onclick="resetAppDatabase()"><i data-lucide="rotate-ccw"></i><span>Reset Mock Database</span></button>
+              </div>
+
+              <div style="border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 1.5rem;">
+                <div class="card-title">System Status</div>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.75rem;">
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Simulator Core:</span>
+                    <strong style="color: var(--success);">Online (Active local storage)</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Framework Target:</span>
+                    <strong>HTML5 / Vanilla CSS / ES6</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Lucide Library:</span>
+                    <strong>v0.4.x loaded</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+
+  <!-- ================= MODALS & DRAWERS SYSTEM ================= -->
+
+  <!-- MODAL A: QUICK ACTION GATEWAY -->
+  <div class="modal-overlay" id="modal-quick-action">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>AssetFlow Actions</h3>
+        <button class="close-btn" onclick="closeModal('modal-quick-action')"><i data-lucide="x"></i></button>
+      </div>
+      <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem;">Select an operation below to load the specific workflow wizard.</p>
+      
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <button class="btn btn-secondary" onclick="closeModal('modal-quick-action'); openRegisterAssetModal();" style="justify-content: flex-start; padding: 1rem;"><i data-lucide="plus-circle" style="color: var(--primary);"></i><span>Register New Corporate Asset</span></button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-quick-action'); openAllocateAssetModal();" style="justify-content: flex-start; padding: 1rem;"><i data-lucide="git-pull-request" style="color: var(--success);"></i><span>Allocate Asset to Employee</span></button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-quick-action'); openBookResourceModal();" style="justify-content: flex-start; padding: 1rem;"><i data-lucide="calendar" style="color: var(--warning);"></i><span>Book Shared Room / Fleet Vehicle</span></button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-quick-action'); openMaintenanceModal();" style="justify-content: flex-start; padding: 1rem;"><i data-lucide="wrench" style="color: var(--danger);"></i><span>File Maintenance Request ticket</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL B: REGISTER ASSET FORM -->
+  <div class="modal-overlay" id="modal-register-asset">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Register New Asset</h3>
+        <button class="close-btn" onclick="closeModal('modal-register-asset')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <form id="form-register-asset" onsubmit="event.preventDefault(); submitRegisterAsset();">
+        <div class="form-group">
+          <label class="form-label" for="reg-name">Asset Model / Name</label>
+          <input type="text" id="reg-name" class="form-control" placeholder="MacBook Pro 16 M3 Max, Ford Transit Van" required>
+        </div>
+
+        <div class="form-control-row">
+          <div class="form-group">
+            <label class="form-label" for="reg-cat">Category</label>
+            <select id="reg-cat" class="form-control" required>
+              <!-- categories injected by JS -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-serial">Serial Number</label>
+            <input type="text" id="reg-serial" class="form-control" placeholder="S/N: 29837D9823" required>
+          </div>
+        </div>
+
+        <div class="form-control-row">
+          <div class="form-group">
+            <label class="form-label" for="reg-cost">Acquisition Cost ($)</label>
+            <input type="number" id="reg-cost" class="form-control" placeholder="1499" required min="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-date">Acquisition Date</label>
+            <input type="date" id="reg-date" class="form-control" required>
+          </div>
+        </div>
+
+        <div class="form-control-row">
+          <div class="form-group">
+            <label class="form-label" for="reg-condition">Condition State</label>
+            <select id="reg-condition" class="form-control" required>
+              <option value="new">New</option>
+              <option value="excellent" selected>Excellent</option>
+              <option value="good">Good</option>
+              <option value="fair">Fair</option>
+              <option value="poor">Poor</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-location">Office Location</label>
+            <input type="text" id="reg-location" class="form-control" placeholder="San Francisco HQ - Row B" required>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 2rem; margin: 1rem 0;">
+          <label class="form-check">
+            <input type="checkbox" id="reg-is-bookable" checked>
+            <span>Flag as Shared Bookable Resource</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Warranty Details (Category specific)</label>
+          <input type="text" id="reg-warranty" class="form-control" placeholder="e.g. 36 Months Manufacturer AppleCare">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-register-asset')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Register Asset</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL C: ALLOCATE ASSET FORM -->
+  <div class="modal-overlay" id="modal-allocate-asset">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Allocate Asset</h3>
+        <button class="close-btn" onclick="closeModal('modal-allocate-asset')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <form id="form-allocate-asset" onsubmit="event.preventDefault(); submitAllocateAsset();">
+        <div class="form-group">
+          <label class="form-label" for="alloc-asset-select">Select Available Asset</label>
+          <select id="alloc-asset-select" class="form-control" required>
+            <!-- Available assets injected via JS -->
+          </select>
+        </div>
+
+        <div class="form-control-row">
+          <div class="form-group">
+            <label class="form-label" for="alloc-dept-select">Target Department</label>
+            <select id="alloc-dept-select" class="form-control" required onchange="updateAllocEmployeeDropdown(this.value)">
+              <!-- Departments injected via JS -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="alloc-emp-select">Assigned Employee</label>
+            <select id="alloc-emp-select" class="form-control" required>
+              <!-- Employees in department injected via JS -->
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="alloc-return-date">Expected Return Date (Optional)</label>
+          <input type="date" id="alloc-return-date" class="form-control">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-allocate-asset')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Confirm Allocation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL D: RESOURCE BOOKING FORM -->
+  <div class="modal-overlay" id="modal-book-resource">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Reserve Shared Resource</h3>
+        <button class="close-btn" onclick="closeModal('modal-book-resource')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <form id="form-book-resource" onsubmit="event.preventDefault(); submitBookResource();">
+        <div class="form-group">
+          <label class="form-label" for="book-resource-select">Select Shared Resource</label>
+          <select id="book-resource-select" class="form-control" required>
+            <!-- Bookable assets injected via JS -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="book-date">Reservation Date</label>
+          <input type="date" id="book-date" class="form-control" required>
+        </div>
+
+        <div class="form-control-row">
+          <div class="form-group">
+            <label class="form-label" for="book-time">Start Time</label>
+            <input type="time" id="book-time" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="book-duration">Duration (Hours)</label>
+            <select id="book-duration" class="form-control" required>
+              <option value="0.5">30 Minutes</option>
+              <option value="1" selected>1 Hour</option>
+              <option value="2">2 Hours</option>
+              <option value="4">4 Hours</option>
+              <option value="8">8 Hours</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-book-resource')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Book Slot</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL E: RAISE MAINTENANCE REQUEST FORM -->
+  <div class="modal-overlay" id="modal-maintenance-request">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Raise Maintenance Request</h3>
+        <button class="close-btn" onclick="closeModal('modal-maintenance-request')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <form id="form-maintenance-request" onsubmit="event.preventDefault(); submitMaintenanceRequest();">
+        <div class="form-group">
+          <label class="form-label" for="maint-asset-select">Select Asset Target</label>
+          <select id="maint-asset-select" class="form-control" required>
+            <!-- All assets registered injected via JS -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="maint-priority">Ticket Priority Level</label>
+          <select id="maint-priority" class="form-control" required>
+            <option value="low">Low - Routine Checkup</option>
+            <option value="medium" selected>Medium - Defect but operable</option>
+            <option value="high">High - Non-functional / Damaged</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="maint-desc">Issue Description</label>
+          <textarea id="maint-desc" class="form-control" rows="3" placeholder="Explain the symptoms, defect, or parts damaged..." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Simulation: Upload Failure Photo</label>
+          <div style="border: 2px dashed var(--border); border-radius: var(--radius-sm); padding: 1.5rem; text-align: center; font-size: 0.8125rem; color: var(--text-muted);">
+            <i data-lucide="camera" style="margin: 0 auto 0.5rem; display: block; color: var(--text-muted);"></i>
+            <span>Click to upload JPEG or PNG (mocked)</span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-maintenance-request')">Cancel</button>
+          <button type="submit" class="btn btn-primary">File Ticket</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL F: CONFLICT WARNING MODAL -->
+  <div class="modal-overlay" id="modal-conflict-warning">
+    <div class="modal-content" style="border: 1px solid var(--danger); border-top: 4px solid var(--danger);">
+      <div class="modal-header">
+        <h3 style="color: var(--danger); display: flex; align-items: center; gap: 0.5rem;">
+          <i data-lucide="alert-octagon"></i> Allocation Conflict Warning
+        </h3>
+        <button class="close-btn" onclick="closeModal('modal-conflict-warning')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <div style="font-size: 0.875rem; color: var(--text-main); margin-bottom: 1.5rem;">
+        <p style="margin-bottom: 0.75rem;">This asset is currently already allocated.</p>
+        <div style="background-color: var(--bg-app); padding: 1rem; border-radius: var(--radius-sm); border-left: 3px solid var(--warning); margin-bottom: 1rem;">
+          <strong>Asset:</strong> <span id="conflict-asset-name">Laptop AF-0114</span><br>
+          <strong>Currently held by:</strong> <span id="conflict-current-holder">Priya Sen</span><br>
+          <strong>Department:</strong> <span id="conflict-current-dept">Marketing</span>
+        </div>
+        <p>You cannot assign a single asset to multiple users. Do you want to submit a <strong>Transfer Request</strong> to re-route this asset upon approval?</p>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-conflict-warning')">Cancel</button>
+        <button class="btn btn-primary" id="btn-request-transfer-submit" onclick="executeTransferRequest()">Submit Transfer Request</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL G: RETURN FORM MODAL -->
+  <div class="modal-overlay" id="modal-return-form">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Asset Check-in & Return</h3>
+        <button class="close-btn" onclick="closeModal('modal-return-form')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <form id="form-return-checkin" onsubmit="event.preventDefault(); submitReturnAsset();">
+        <input type="hidden" id="return-asset-id">
+        <div style="background-color: var(--primary-light); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1.25rem; font-size: 0.875rem;">
+          <strong>Returning:</strong> <span id="return-asset-label">MacBook Pro (AF-0012)</span><br>
+          <strong>Assigned to:</strong> <span id="return-employee-label">Raj Kumar</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="return-condition">Check-in Condition</label>
+          <select id="return-condition" class="form-control" required>
+            <option value="excellent">Excellent - No damage</option>
+            <option value="good" selected>Good - Normal wear</option>
+            <option value="fair">Fair - Scratched or dented</option>
+            <option value="poor">Poor - Needs service inspection</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="return-notes">Check-in Condition Notes</label>
+          <textarea id="return-notes" class="form-control" rows="2" placeholder="e.g. Returned with original charger, small scratch on top casing."></textarea>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-return-form')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Complete Return</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL H: QR CODE SCANNER SIMULATOR -->
+  <div class="modal-overlay" id="modal-qr-scan">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Simulated QR Scanner</h3>
+        <button class="close-btn" onclick="closeModal('modal-qr-scan')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <div class="qr-scanner-box">
+        <div class="qr-target-box">
+          <i data-lucide="qr-code" style="width: 3.5rem; height: 3.5rem; opacity: 0.4;"></i>
+        </div>
+        <span style="font-size: 0.75rem; margin-top: 1rem; font-weight: 500; color: rgba(255,255,255,0.7);">Point camera at Asset QR code</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="qr-simulate-select">Simulate Scanning Asset Code</label>
+        <select id="qr-simulate-select" class="form-control">
+          <!-- Assets listed via JS -->
+        </select>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-qr-scan')">Cancel</button>
+        <button class="btn btn-primary" onclick="executeQrScanSearch()">Simulate Scan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL I: CREATE AUDIT CYCLE FORM -->
+  <div class="modal-overlay" id="modal-start-audit">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Schedule New Audit Cycle</h3>
+        <button class="close-btn" onclick="closeModal('modal-start-audit')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <form id="form-start-audit" onsubmit="event.preventDefault(); submitStartAudit();">
+        <div class="form-group">
+          <label class="form-label" for="audit-title">Audit Cycle Title</label>
+          <input type="text" id="audit-title" class="form-control" placeholder="e.g. Q3 IT Hardware Audit" required>
+        </div>
+
+        <div class="form-control-row">
+          <div class="form-group">
+            <label class="form-label" for="audit-scope-dept">Scope (Department)</label>
+            <select id="audit-scope-dept" class="form-control" required>
+              <!-- Departments injected via JS -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="audit-auditor">Assigned Auditor</label>
+            <select id="audit-auditor" class="form-control" required>
+              <!-- Employees injected via JS -->
+            </select>
+          </div>
+        </div>
+
+        <div class="form-control-row">
+          <div class="form-group">
+            <label class="form-label" for="audit-start-date">Start Date</label>
+            <input type="date" id="audit-start-date" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="audit-end-date">End Date</label>
+            <input type="date" id="audit-end-date" class="form-control" required>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-start-audit')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Cycle</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL J: ASSIGN TECHNICIAN FORM -->
+  <div class="modal-overlay" id="modal-assign-tech">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Assign Technician & Schedule</h3>
+        <button class="close-btn" onclick="closeModal('modal-assign-tech')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <form id="form-assign-tech" onsubmit="event.preventDefault(); submitAssignTechnician();">
+        <input type="hidden" id="assign-maint-id">
+        <div style="background-color: var(--primary-light); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1.25rem; font-size: 0.875rem;" id="assign-tech-asset-details">
+          <!-- Injected via JS -->
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="assign-tech-select">Choose Technician</label>
+          <select id="assign-tech-select" class="form-control" required>
+            <!-- Technicians/Employees list injected via JS -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="assign-tech-deadline">Scheduled Resolution Target Date</label>
+          <input type="date" id="assign-tech-deadline" class="form-control" required>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-assign-tech')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Assign Technician</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL K: ORGANIZATION SETUP - ADD DEPARTMENT -->
+  <div class="modal-overlay" id="modal-add-dept">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add New Department</h3>
+        <button class="close-btn" onclick="closeModal('modal-add-dept')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <form id="form-add-dept" onsubmit="event.preventDefault(); submitAddDept();">
+        <div class="form-group">
+          <label class="form-label" for="dept-add-name">Department Name</label>
+          <input type="text" id="dept-add-name" class="form-control" placeholder="e.g. Product Engineering" required>
+        </div>
+
+        <div class="form-control-row">
+          <div class="form-group">
+            <label class="form-label" for="dept-add-code">Department Code</label>
+            <input type="text" id="dept-add-code" class="form-control" placeholder="e.g. PE" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="dept-add-parent">Parent Division</label>
+            <select id="dept-add-parent" class="form-control">
+              <option value="">None (Top-level division)</option>
+              <!-- Departments injected via JS -->
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="dept-add-head">Department Head</label>
+          <select id="dept-add-head" class="form-control" required>
+            <!-- Employees injected via JS -->
+          </select>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-dept')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Department</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL L: ORGANIZATION SETUP - CREATE CATEGORY -->
+  <div class="modal-overlay" id="modal-add-category">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create Asset Category</h3>
+        <button class="close-btn" onclick="closeModal('modal-add-category')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <form id="form-add-category" onsubmit="event.preventDefault(); submitAddCategory();">
+        <div class="form-group">
+          <label class="form-label" for="cat-add-name">Category Name</label>
+          <input type="text" id="cat-add-name" class="form-control" placeholder="e.g. AV Equipment, Servers" required>
+        </div>
+
+        <div class="form-control-row">
+          <div class="form-group">
+            <label class="form-label" for="cat-add-icon">Category Icon</label>
+            <select id="cat-add-icon" class="form-control" required>
+              <option value="laptop">Laptop / PC</option>
+              <option value="smartphone">Mobile Phone</option>
+              <option value="sofa">Furniture / Seating</option>
+              <option value="car">Vehicle / Fleet</option>
+              <option value="projector">AV / Media Equipment</option>
+              <option value="server">Server Hardware</option>
+              <option value="shield">Security / Network Systems</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cat-add-warranty">Warranty Policy (Months)</label>
+            <input type="number" id="cat-add-warranty" class="form-control" placeholder="36" required min="0">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cat-add-custom">Additional Custom Details Field</label>
+          <input type="text" id="cat-add-custom" class="form-control" placeholder="e.g. RAM, GPU, Lease Agreement Expiry">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-category')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Category</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ================= ASSETS DETAIL SLIDE-OUT DRAWER ================= -->
+  <div class="drawer-overlay" id="drawer-asset-details" onclick="closeDrawerIfOverlay(event, 'drawer-asset-details')">
+    <div class="drawer-content">
+      <div class="drawer-body">
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem;">
+          <div>
+            <span class="badge badge-available" id="drawer-asset-status" style="margin-bottom: 0.5rem;">Available</span>
+            <h2 id="drawer-asset-name" style="font-size: 1.5rem; font-weight: 700; color: var(--text-main); line-height: 1.2;">MacBook Pro 16 M3</h2>
+            <p id="drawer-asset-tag" style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.125rem;">Tag: AF-0112</p>
+          </div>
+          <button class="close-btn" onclick="closeDrawer('drawer-asset-details')"><i data-lucide="x"></i></button>
+        </div>
+
+        <!-- Simulated Photo & QR grid -->
+        <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+          <div style="flex-grow: 1; height: 120px; border-radius: var(--radius-sm); border: 1px solid var(--border); overflow: hidden; background-color: var(--bg-app); display: flex; align-items: center; justify-content: center; position: relative;">
+            <i data-lucide="image" style="color: var(--text-muted); width: 2.25rem; height: 2.25rem;"></i>
+            <span style="font-size: 0.75rem; color: var(--text-muted); position: absolute; bottom: 8px;">Asset Photograph</span>
+          </div>
+          <div class="qr-code-placeholder" style="flex-shrink: 0; width: 120px; height: 120px; border: 1px solid var(--border);">
+            <div id="drawer-qr-container">
+              <!-- Dynamically generated QR SVG icon -->
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 1rem; border-top: 1px solid var(--border); padding-top: 1.25rem; margin-bottom: 1.5rem;">
+          <div class="form-control-row">
+            <div>
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Serial Number</span>
+              <strong style="font-size: 0.875rem; color: var(--text-main);" id="drawer-asset-serial">SN-2098D712</strong>
+            </div>
+            <div>
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Category</span>
+              <strong style="font-size: 0.875rem; color: var(--text-main);" id="drawer-asset-category">Computers</strong>
+            </div>
+          </div>
+
+          <div class="form-control-row">
+            <div>
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Acquisition Date</span>
+              <strong style="font-size: 0.875rem; color: var(--text-main);" id="drawer-asset-date">2026-03-12</strong>
+            </div>
+            <div>
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Acquisition Cost</span>
+              <strong style="font-size: 0.875rem; color: var(--text-main);" id="drawer-asset-cost">$2,499.00</strong>
+            </div>
+          </div>
+
+          <div class="form-control-row">
+            <div>
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Condition</span>
+              <strong style="font-size: 0.875rem; color: var(--text-main); text-transform: capitalize;" id="drawer-asset-condition">Excellent</strong>
+            </div>
+            <div>
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Office Location</span>
+              <strong style="font-size: 0.875rem; color: var(--text-main);" id="drawer-asset-location">San Francisco HQ</strong>
+            </div>
+          </div>
+
+          <div class="form-control-row">
+            <div>
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Warranty Expire</span>
+              <strong style="font-size: 0.875rem; color: var(--text-main);" id="drawer-asset-warranty">2029-03-12</strong>
+            </div>
+            <div>
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Shared Resource</span>
+              <strong style="font-size: 0.875rem; color: var(--text-main);" id="drawer-asset-bookable">Yes (Bookable)</strong>
+            </div>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid var(--border); padding-top: 1.25rem;">
+          <h3 style="font-size: 0.875rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.75rem;">Audit & Lifespans History</h3>
+          
+          <div class="tabs-navigation" style="margin-bottom: 1rem; font-size: 0.75rem;">
+            <button class="tab-btn active" id="btn-drawer-tab-alloc" onclick="switchDrawerTab(event, 'drawer-tab-alloc')">Allocation log</button>
+            <button class="tab-btn" id="btn-drawer-tab-maint" onclick="switchDrawerTab(event, 'drawer-tab-maint')">Maintenance log</button>
+          </div>
+
+          <div id="drawer-tab-alloc" class="tab-pane active">
+            <div class="timeline" id="drawer-timeline-alloc">
+              <!-- Dynamically populated allocation timeline items -->
+            </div>
+          </div>
+          
+          <div id="drawer-tab-maint" class="tab-pane">
+            <div class="timeline" id="drawer-timeline-maint">
+              <!-- Dynamically populated maintenance timeline items -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="drawer-footer">
+        <button class="btn btn-secondary" style="flex-grow: 1;" onclick="triggerMaintRequestFromDrawer()"><i data-lucide="wrench"></i><span>Request Repair</span></button>
+        <button class="btn btn-primary" style="flex-grow: 1;" id="drawer-allocation-action-btn" onclick="triggerAllocationFromDrawer()"><i data-lucide="git-pull-request"></i><span>Allocate Device</span></button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ================= TOAST NOTIFICATION GATEWAY ================= -->
+  <div class="toast-container" id="toast-hub">
+    <!-- Toasts dynamically appended here -->
+  </div>
+
+  <!-- JavaScript logic script -->
+  <script type="module" src="/src/main.ts"></script>
+  <script src="app.js"></script>
+</body>
+</html>
