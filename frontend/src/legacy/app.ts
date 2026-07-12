@@ -387,28 +387,19 @@ function navigate(pageId: string): void {
     .join(' ');
   getEl('breadcrumb-page').textContent = pageTitle;
 
-  // Run specific page loaders
-  if (pageId === 'dashboard') {
-    loadDashboardPage();
-  } else if (pageId === 'org-setup') {
-    loadOrgSetupPage();
-  } else if (pageId === 'assets') {
-    loadAssetsPage();
-  } else if (pageId === 'allocation') {
-    loadAllocationsPage();
-  } else if (pageId === 'booking') {
-    loadBookingPage();
-  } else if (pageId === 'maintenance') {
-    loadMaintenancePage();
-  } else if (pageId === 'audit') {
-    loadAuditPage();
-  } else if (pageId === 'reports') {
-    loadReportsPage();
-  } else if (pageId === 'notifications') {
-    renderNotificationsPage();
-  } else if (pageId === 'settings') {
-    loadSettingsPage();
-  }
+  const pageLoaders: Record<string, () => void> = {
+    dashboard: loadDashboardPage,
+    'org-setup': loadOrgSetupPage,
+    assets: loadAssetsPage,
+    allocation: loadAllocationsPage,
+    booking: loadBookingPage,
+    maintenance: loadMaintenancePage,
+    audit: loadAuditPage,
+    reports: loadReportsPage,
+    notifications: renderNotificationsPage,
+    settings: loadSettingsPage,
+  };
+  pageLoaders[pageId]?.();
 
   // Smooth scroll page back to top
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -861,13 +852,32 @@ function loadDashboardPage(): void {
     getEl('dashboard-welcome').textContent = `Welcome, ${state.currentUser.name}`;
   }
 
-  // Calculations for KPIs
-  const availableCount = state.assets.filter((a) => a.status === 'available').length;
-  const allocatedCount = state.assets.filter((a) => a.status === 'allocated').length;
-  const maintenanceCount = state.maintenance.filter((m) => m.status !== 'resolved').length;
-  const activeBookings = state.bookings.filter((b) => b.status === 'ongoing' || b.status === 'upcoming').length;
-  const pendingTransfers = state.transfers.filter((t) => t.status === 'pending').length;
-  const overdueReturns = state.allocations.filter((al) => al.status === 'overdue').length;
+  let availableCount = 0;
+  let allocatedCount = 0;
+  for (const asset of state.assets) {
+    if (asset.status === 'available') availableCount++;
+    else if (asset.status === 'allocated') allocatedCount++;
+  }
+
+  let maintenanceCount = 0;
+  for (const item of state.maintenance) {
+    if (item.status !== 'resolved') maintenanceCount++;
+  }
+
+  let activeBookings = 0;
+  for (const booking of state.bookings) {
+    if (booking.status === 'ongoing' || booking.status === 'upcoming') activeBookings++;
+  }
+
+  let pendingTransfers = 0;
+  for (const transfer of state.transfers) {
+    if (transfer.status === 'pending') pendingTransfers++;
+  }
+
+  let overdueReturns = 0;
+  for (const allocation of state.allocations) {
+    if (allocation.status === 'overdue') overdueReturns++;
+  }
 
   getEl('kpi-available').textContent = String(availableCount);
   getEl('kpi-allocated').textContent = String(allocatedCount);
@@ -883,25 +893,28 @@ function loadDashboardPage(): void {
   const listContainer = getEl('widget-activity-list');
   listContainer.innerHTML = '';
 
-  // Show last 4 audit logs
-  state.auditLogs.slice(0, 4).forEach((log) => {
-    let dotClass = 'primary';
-    if (log.action === 'CREATE') dotClass = 'success';
-    if (log.action === 'ASSIGN') dotClass = 'primary';
-    if (log.action === 'MAINTENANCE') dotClass = 'danger';
-    if (log.action === 'RETURN') dotClass = 'warning';
+  const activityDotByAction: Record<string, string> = {
+    CREATE: 'success',
+    ASSIGN: 'primary',
+    MAINTENANCE: 'danger',
+    RETURN: 'warning',
+  };
 
-    listContainer.innerHTML += `
+  listContainer.innerHTML = state.auditLogs
+    .slice(0, 4)
+    .map(
+      (log) => `
       <div class="activity-item">
-        <div class="activity-dot ${dotClass}"></div>
+        <div class="activity-dot ${activityDotByAction[log.action] ?? 'primary'}"></div>
         <div class="activity-details">
           <h5>${log.operator}</h5>
           <p>${log.details}</p>
           <div class="activity-time">${log.timestamp}</div>
         </div>
       </div>
-    `;
-  });
+    `
+    )
+    .join('');
 
   // Render Overdue return items
   const overdueTable = getEl('widget-overdue-table');
@@ -911,19 +924,24 @@ function loadDashboardPage(): void {
   if (overdueAllocs.length === 0) {
     overdueTable.innerHTML = `<tr><td style="color:var(--text-muted); text-align:center;">No overdue assets!</td></tr>`;
   } else {
-    overdueAllocs.forEach((al) => {
-      const asset = state.assets.find((a) => a.id === al.assetId);
-      const employee = state.employees.find((e) => e.id === al.employeeId);
-      overdueTable.innerHTML += `
+    const assetsById = new Map(state.assets.map((asset) => [asset.id, asset]));
+    const employeesById = new Map(state.employees.map((employee) => [employee.id, employee]));
+
+    overdueTable.innerHTML = overdueAllocs
+      .map((al) => {
+        const asset = assetsById.get(al.assetId);
+        const employee = employeesById.get(al.employeeId);
+        return `
         <tr>
-          <td style="font-weight:600; padding: 0.5rem 0.75rem;">${asset ? asset.name : 'Asset'}</td>
-          <td style="padding: 0.5rem 0.75rem;">${employee ? employee.name : 'User'}</td>
+          <td style="font-weight:600; padding: 0.5rem 0.75rem;">${asset?.name ?? 'Asset'}</td>
+          <td style="padding: 0.5rem 0.75rem;">${employee?.name ?? 'User'}</td>
           <td style="color:var(--danger); font-weight:600; padding: 0.5rem 0.75rem; text-align:right;">
             Overdue
           </td>
         </tr>
       `;
-    });
+      })
+      .join('');
   }
 
   // Render priority bulletins widget
@@ -931,21 +949,21 @@ function loadDashboardPage(): void {
   bulletins.innerHTML = '';
 
   const unreadNotifs = state.notifications.filter((n) => !n.isRead);
-  if (unreadNotifs.length === 0) {
-    bulletins.innerHTML = `
-      <div style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding:1rem 0;">
+  bulletins.innerHTML =
+    unreadNotifs.length === 0
+      ? `<div style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding:1rem 0;">
         No unread bulletins. All quiet.
-      </div>
-    `;
-  } else {
-    unreadNotifs.slice(0, 2).forEach((n) => {
-      bulletins.innerHTML += `
+      </div>`
+      : unreadNotifs
+          .slice(0, 2)
+          .map(
+            (n) => `
         <div style="background-color: var(--primary-light); border-left:3px solid var(--primary); padding: 0.5rem 0.75rem; border-radius: 4px; font-size:0.75rem;">
           <strong>${n.type}:</strong> ${n.content}
         </div>
-      `;
-    });
-  }
+      `
+          )
+          .join('');
 
   updateGlobalUnreadIndicators();
 }
