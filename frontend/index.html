@@ -56,23 +56,23 @@
         <h3>Sign In</h3>
         <p>Access your organization's AssetFlow ERP dashboard.</p>
         
-        <form id="login-form" onsubmit="event.preventDefault(); handleLogin();">
+        <form id="login-form" autocomplete="off" onsubmit="event.preventDefault(); handleLogin();">
           <div class="form-group">
             <label class="form-label" for="login-email">Corporate Email</label>
             <div class="form-control-wrapper">
               <i data-lucide="mail"></i>
-              <input type="email" id="login-email" class="form-control has-icon" placeholder="name@company.com" required value="admin@assetflow.com">
+              <input type="email" id="login-email" class="form-control has-icon" placeholder="name@company.com" required autocomplete="off">
             </div>
           </div>
-          
+
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
               <label class="form-label" style="margin-bottom: 0;" for="login-password">Password</label>
-              <a class="auth-form-toggle-link" style="font-size: 0.8125rem;" onclick="handleForgotPassword()">Forgot Password?</a>
+              <a class="auth-form-toggle-link" style="font-size: 0.8125rem;" onclick="toggleAuthPanel('forget')">Forgot Password?</a>
             </div>
             <div class="form-control-wrapper">
               <i data-lucide="lock"></i>
-              <input type="password" id="login-password" class="form-control has-icon" placeholder="••••••••" required value="admin123">
+              <input type="password" id="login-password" class="form-control has-icon" placeholder="••••••••" required autocomplete="off">
             </div>
           </div>
           
@@ -98,12 +98,12 @@
         <h3>Employee Registration</h3>
         <p>Register as an employee. Administrator will assign your department and permissions.</p>
         
-        <form id="signup-form" onsubmit="event.preventDefault(); handleSignup();">
+        <form id="signup-form" autocomplete="off" onsubmit="event.preventDefault(); handleSignup();">
           <div class="form-group">
             <label class="form-label" for="signup-name">Full Name</label>
             <div class="form-control-wrapper">
               <i data-lucide="user"></i>
-              <input type="text" id="signup-name" class="form-control has-icon" placeholder="John Doe" required>
+              <input type="text" id="signup-name" class="form-control has-icon" placeholder="John Doe" required autocomplete="off">
             </div>
           </div>
 
@@ -111,16 +111,28 @@
             <label class="form-label" for="signup-email">Work Email</label>
             <div class="form-control-wrapper">
               <i data-lucide="mail"></i>
-              <input type="email" id="signup-email" class="form-control has-icon" placeholder="john.doe@company.com" required>
+              <input type="email" id="signup-email" class="form-control has-icon" placeholder="john.doe@company.com" required autocomplete="off">
             </div>
           </div>
-          
+
           <div class="form-group">
             <label class="form-label" for="signup-password">Password</label>
             <div class="form-control-wrapper">
               <i data-lucide="lock"></i>
-              <input type="password" id="signup-password" class="form-control has-icon" placeholder="Minimum 6 characters" required minlength="6">
+              <input
+                type="password"
+                id="signup-password"
+                class="form-control has-icon"
+                placeholder="Minimum 8 characters"
+                required
+                minlength="8"
+                autocomplete="new-password"
+                pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}"
+                title="Must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.">
             </div>
+            <span style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.375rem;">
+              Must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.
+            </span>
           </div>
           
           <div class="form-group" style="margin-top: 1.5rem;">
@@ -137,6 +149,96 @@
         
         <p style="margin-top: 2rem; text-align: center;">
           Already have an account? <a class="auth-form-toggle-link" onclick="toggleAuthPanel('login')">Sign In</a>
+        </p>
+      </div>
+
+      <!-- FORGET PASSWORD FORM (3-step state machine: email -> otp -> reset) -->
+      <div id="forget-password-form-panel" class="auth-form-card" style="display: none;">
+        <h3>Reset Password</h3>
+        <p id="fp-subtitle">Enter your registered email to receive a one-time verification code.</p>
+
+        <!-- Section A: Email -->
+        <div id="fp-section-email">
+          <form id="forget-password-email-form" autocomplete="off" onsubmit="event.preventDefault(); submitForgetPasswordEmail();">
+            <div class="form-group">
+              <label class="form-label" for="fp-email">Corporate Email</label>
+              <div class="form-control-wrapper">
+                <i data-lucide="mail"></i>
+                <input type="email" id="fp-email" class="form-control has-icon" placeholder="name@company.com" required autocomplete="off">
+              </div>
+              <span id="fp-email-error" class="form-error-text" style="display: none;"></span>
+            </div>
+
+            <button type="submit" id="btn-fp-email-submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+              <span>Send OTP</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Section B: OTP Verification -->
+        <div id="fp-section-otp" style="display: none;">
+          <form id="forget-password-otp-form" onsubmit="event.preventDefault(); submitVerifyOtp();">
+            <div class="form-group">
+              <label class="form-label" for="fp-otp">6-Digit Verification Code</label>
+              <div class="form-control-wrapper">
+                <i data-lucide="shield-check"></i>
+                <input type="text" id="fp-otp" class="form-control has-icon" placeholder="123456" maxlength="6" inputmode="numeric" pattern="\d{6}" required>
+              </div>
+              <span id="fp-otp-error" class="form-error-text" style="display: none;"></span>
+            </div>
+
+            <button type="submit" id="btn-fp-otp-submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+              <span>Verify Code</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Section C: New Password + Confirm New Password -->
+        <div id="fp-section-reset" style="display: none;">
+          <form id="forget-password-reset-form" autocomplete="off" onsubmit="event.preventDefault(); submitResetPassword();">
+            <div class="form-group">
+              <label class="form-label" for="fp-new-password">New Password</label>
+              <div class="form-control-wrapper">
+                <i data-lucide="lock"></i>
+                <input
+                  type="password"
+                  id="fp-new-password"
+                  class="form-control has-icon has-toggle"
+                  placeholder="Minimum 8 characters"
+                  required
+                  minlength="8"
+                  autocomplete="new-password"
+                  pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}"
+                  title="Must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.">
+                <button type="button" id="fp-new-password-toggle" class="password-toggle-btn" aria-label="Show password">
+                  <i data-lucide="eye"></i>
+                </button>
+              </div>
+              <span style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.375rem;">
+                Must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.
+              </span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="fp-confirm-password">Confirm New Password</label>
+              <div class="form-control-wrapper">
+                <i data-lucide="lock"></i>
+                <input type="password" id="fp-confirm-password" class="form-control has-icon has-toggle" placeholder="Re-enter new password" required minlength="8" autocomplete="new-password">
+                <button type="button" id="fp-confirm-password-toggle" class="password-toggle-btn" aria-label="Show password">
+                  <i data-lucide="eye"></i>
+                </button>
+              </div>
+              <span id="fp-reset-error" class="form-error-text" style="display: none;"></span>
+            </div>
+
+            <button type="submit" id="btn-fp-reset-submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+              <span>Reset Password</span>
+            </button>
+          </form>
+        </div>
+
+        <p style="margin-top: 2rem; text-align: center;">
+          Remember your password? <a class="auth-form-toggle-link" onclick="toggleAuthPanel('login')">Sign In</a>
         </p>
       </div>
     </div>
@@ -1840,6 +1942,6 @@
 
   <!-- JavaScript logic script -->
   <script type="module" src="/src/main.ts"></script>
-  <script src="app.js"></script>
+  <script type="module" src="/src/legacy/app.ts"></script>
 </body>
 </html>

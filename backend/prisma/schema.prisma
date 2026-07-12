@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  MANAGER
+  IT_SUPPORT
+  EMPLOYEE
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum AssetType {
+  LAPTOP
+  MONITOR
+  MOBILE
+  SOFTWARE
+  PERIPHERAL
+}
+
+enum AssetStatus {
+  AVAILABLE
+  ASSIGNED
+  UNDER_REPAIR
+  RETIRED
+}
+
+enum RequestPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Department {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  created_at DateTime @default(now())
+
+  users  User[]
+  assets Asset[]
+
+  @@map("departments")
+}
+
+model User {
+  id            Int        @id @default(autoincrement())
+  name          String
+  email         String     @unique
+  password      String
+  role          Role       @default(EMPLOYEE)
+  departmentId  Int?       @map("department_id")
+  status        UserStatus @default(ACTIVE)
+  otpCode       String?
+  otpExpires    DateTime?
+  isOtpVerified Boolean    @default(false)
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  department        Department?    @relation(fields: [departmentId], references: [id])
+  assignedAssets    Asset[]        @relation("AssignedAssets")
+  submittedRequests AssetRequest[] @relation("RequestedBy")
+  processedRequests AssetRequest[] @relation("ProcessedBy")
+  auditLogs         AuditLog[]     @relation("PerformedBy")
+  revokedTokens     RevokedToken[]
+
+  @@map("users")
+}
+
+model Asset {
+  id             Int         @id @default(autoincrement())
+  serialNumber   String      @unique
+  name           String
+  type           AssetType
+  status         AssetStatus @default(AVAILABLE)
+  purchaseDate   DateTime?
+  cost           Decimal?    @db.Decimal(10, 2)
+  vendorName     String?
+  warrantyExpiry DateTime?
+  assignedToId   Int?
+  departmentId   Int?
+  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime    @default(now())
+
+  assignedTo User?       @relation("AssignedAssets", fields: [assignedToId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  @@index([status, type])
+  @@map("assets")
+}
+
+model AssetRequest {
+  id            Int             @id @default(autoincrement())
+  userId        Int
+  assetType     AssetType
+  justification String          @db.Text
+  priority      RequestPriority @default(MEDIUM)
+  status        RequestStatus   @default(PENDING)
+  managerNotes  String?         @db.Text
+  processedById Int?
+  createdAt     DateTime        @default(now())
+
+  user        User  @relation("RequestedBy", fields: [userId], references: [id])
+  processedBy User? @relation("ProcessedBy", fields: [processedById], references: [id])
+
+  @@index([status, userId])
+  @@map("asset_requests")
+}
+
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  actionType    String
+  performedById Int
+  description   String   @db.Text
+  timestamp     DateTime @default(now())
+
+  performedBy User @relation("PerformedBy", fields: [performedById], references: [id])
+
+  @@index([actionType, performedById])
+  @@map("audit_logs")
+}
+
+model RevokedToken {
+  id        Int      @id @default(autoincrement())
+  jti       String   @unique
+  userId    Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("revoked_tokens")
+}

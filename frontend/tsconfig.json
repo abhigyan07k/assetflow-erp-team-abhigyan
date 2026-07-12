@@ -11,11 +11,11 @@
     "isolatedModules": true,
     "allowJs": false,
     "checkJs": false,
-    "jsx": "react-jsx",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": [],
+    "types": ["vite/client"],
     "paths": {
       "@app/*": ["./src/app/*"],
+      "@config/*": ["./src/config/*"],
       "@core/*": ["./src/core/*"],
       "@data/*": ["./src/data/*"],
       "@features/*": ["./src/features/*"],

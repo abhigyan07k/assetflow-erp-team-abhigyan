@@ -1,7 +1,72 @@
 // AssetFlow ERP - Core State Engine & Application Logic
+// Strict TypeScript port of the legacy app.js UI engine. Preserves 100% of the
+// original DOM ids, onclick wiring, and business logic. Exposed globally via
+// `window` assignments at the bottom so the existing inline HTML event
+// handlers (onclick="...", onsubmit="...") continue to resolve correctly.
+
+import type {
+  ApplicationState,
+  Asset,
+  AssetCondition,
+  ChartInstanceMap,
+  Department,
+  MaintenanceStatus,
+  Role,
+  ToastType
+} from '@core/types';
+import { apiRequest } from '@config/api';
+
+declare const lucide: { createIcons(): void };
+
+interface ChartDataset {
+  label?: string;
+  data: number[];
+  borderColor?: string;
+  backgroundColor?: string | string[];
+  tension?: number;
+  fill?: boolean;
+  borderRadius?: number;
+  borderWidth?: number;
+}
+
+interface ChartConfig {
+  type: string;
+  data: {
+    labels: string[];
+    datasets: ChartDataset[];
+  };
+  options?: Record<string, unknown>;
+}
+
+declare class Chart {
+  constructor(ctx: CanvasRenderingContext2D, config: ChartConfig);
+  destroy(): void;
+}
+
+// ================= DOM HELPERS =================
+function getEl<T extends HTMLElement = HTMLElement>(id: string): T {
+  const el = document.getElementById(id);
+  if (!el) {
+    throw new Error(`Expected element with id "${id}" to exist in the DOM`);
+  }
+  return el as T;
+}
+
+function getElOrNull<T extends HTMLElement = HTMLElement>(id: string): T | null {
+  return document.getElementById(id) as T | null;
+}
+
+function getCanvasContext(id: string): CanvasRenderingContext2D {
+  const canvas = getEl<HTMLCanvasElement>(id);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error(`Expected 2D context for canvas "${id}"`);
+  }
+  return ctx;
+}
 
 // ================= GLOBAL APPLICATION STATE =================
-let state = {
+let state: ApplicationState = {
   departments: [],
   categories: [],
   employees: [],
@@ -25,10 +90,10 @@ let state = {
 };
 
 // Global reference for ChartJS instances to destroy before recreating
-let charts = {};
+const charts: ChartInstanceMap = {};
 
 // ================= INITIAL DATABASE SEEDING =================
-function seedInitialDatabase() {
+function seedInitialDatabase(): void {
   // 1. Departments
   state.departments = [
     { id: 'd-1', name: 'Product Engineering', code: 'ENG', head: 'Bob Johnson', parent: '', status: 'active', assetsCount: 5 },
@@ -245,7 +310,7 @@ function seedInitialDatabase() {
 }
 
 // ================= LOCAL STORAGE MANAGER =================
-function loadState() {
+function loadState(): void {
   if (window.AssetFlow) {
     state = structuredClone(window.AssetFlow.loadState());
     return;
@@ -254,9 +319,9 @@ function loadState() {
   const stored = localStorage.getItem('assetflow_erp_db');
   if (stored) {
     try {
-      state = JSON.parse(stored);
+      state = JSON.parse(stored) as ApplicationState;
     } catch (e) {
-      console.error("Failed to parse database state. Re-seeding.", e);
+      console.error('Failed to parse database state. Re-seeding.', e);
       seedInitialDatabase();
     }
   } else {
@@ -264,7 +329,7 @@ function loadState() {
   }
 }
 
-function saveState() {
+function saveState(): void {
   if (window.AssetFlow) {
     window.AssetFlow.store.setState(state);
     window.AssetFlow.saveState();
@@ -274,41 +339,41 @@ function saveState() {
   localStorage.setItem('assetflow_erp_db', JSON.stringify(state));
 }
 
-function resetAppDatabase() {
+function resetAppDatabase(): void {
   if (window.AssetFlow) {
     state = structuredClone(window.AssetFlow.resetAppDatabase());
-    showToast("Application database successfully reset to defaults!", "success");
+    showToast('Application database successfully reset to defaults!', 'success');
     setTimeout(() => window.location.reload(), 1000);
     return;
   }
 
   localStorage.removeItem('assetflow_erp_db');
   seedInitialDatabase();
-  showToast("Application database successfully reset to defaults!", "success");
+  showToast('Application database successfully reset to defaults!', 'success');
   setTimeout(() => window.location.reload(), 1000);
 }
 
 // ================= ROUTING & SHELL NAVIGATION =================
-function navigate(pageId) {
+function navigate(pageId: string): void {
   // Hide all sections
-  document.querySelectorAll('.page-section').forEach(section => {
+  document.querySelectorAll('.page-section').forEach((section) => {
     section.classList.remove('active');
   });
 
   // Show target section
-  const targetSection = document.getElementById(`page-${pageId}`);
+  const targetSection = getElOrNull(`page-${pageId}`);
   if (targetSection) {
     targetSection.classList.add('active');
   }
 
   // Update sidebar active link state
-  document.querySelectorAll('.sidebar-nav .nav-item').forEach(btn => {
+  document.querySelectorAll('.sidebar-nav .nav-item').forEach((btn) => {
     btn.classList.remove('active');
   });
-  
+
   // Find which button contains page click
   const navBtns = document.querySelectorAll('.sidebar-nav .nav-item');
-  navBtns.forEach(btn => {
+  navBtns.forEach((btn) => {
     const clickHandler = btn.getAttribute('onclick');
     if (clickHandler && clickHandler.includes(pageId)) {
       btn.classList.add('active');
@@ -316,8 +381,11 @@ function navigate(pageId) {
   });
 
   // Update Breadcrumbs
-  const pageTitle = pageId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-  document.getElementById('breadcrumb-page').textContent = pageTitle;
+  const pageTitle = pageId
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+  getEl('breadcrumb-page').textContent = pageTitle;
 
   // Run specific page loaders
   if (pageId === 'dashboard') {
@@ -347,13 +415,13 @@ function navigate(pageId) {
 }
 
 // ================= TOAST SYSTEM =================
-function showToast(message, type = 'primary') {
-  const container = document.getElementById('toast-hub');
+function showToast(message: string, type: ToastType = 'primary'): void {
+  const container = getElOrNull('toast-hub');
   if (!container) return;
 
   const toast = document.createElement('div');
   toast.className = `toast-message ${type}`;
-  
+
   let iconName = 'info';
   if (type === 'success') iconName = 'check-circle-2';
   if (type === 'warning') iconName = 'alert-triangle';
@@ -376,121 +444,172 @@ function showToast(message, type = 'primary') {
 }
 
 // ================= THEME TOGGLE (DARK MODE) =================
-function toggleTheme() {
+function toggleTheme(): void {
   const body = document.body;
   const isDark = body.classList.toggle('dark-mode');
-  
+
   // Toggle Navbar Icons
-  const lightIcon = document.getElementById('theme-icon-light');
-  const darkIcon = document.getElementById('theme-icon-dark');
-  
+  const lightIcon = getEl('theme-icon-light');
+  const darkIcon = getEl('theme-icon-dark');
+
   if (isDark) {
     lightIcon.style.display = 'none';
     darkIcon.style.display = 'block';
-    showToast("Switched to dark theme", "primary");
+    showToast('Switched to dark theme', 'primary');
   } else {
     lightIcon.style.display = 'block';
     darkIcon.style.display = 'none';
-    showToast("Switched to light theme", "primary");
+    showToast('Switched to light theme', 'primary');
   }
-  
+
   // Re-render graphs to match dark colors
-  if (document.getElementById('page-dashboard').classList.contains('active')) {
+  if (getEl('page-dashboard').classList.contains('active')) {
     loadDashboardPage();
-  } else if (document.getElementById('page-reports').classList.contains('active')) {
+  } else if (getEl('page-reports').classList.contains('active')) {
     loadReportsPage();
   }
 }
 
 // ================= AUTHENTICATION SYSTEMS =================
-function toggleAuthPanel(mode) {
-  const loginPanel = document.getElementById('login-form-panel');
-  const signupPanel = document.getElementById('signup-form-panel');
-  
-  if (mode === 'signup') {
-    loginPanel.style.display = 'none';
-    signupPanel.style.display = 'block';
-  } else {
-    loginPanel.style.display = 'block';
-    signupPanel.style.display = 'none';
+function toggleAuthPanel(mode: 'login' | 'signup' | 'forget'): void {
+  const loginPanel = getEl('login-form-panel');
+  const signupPanel = getEl('signup-form-panel');
+  const forgetPanel = getEl('forget-password-form-panel');
+
+  loginPanel.style.display = mode === 'login' ? 'block' : 'none';
+  signupPanel.style.display = mode === 'signup' ? 'block' : 'none';
+  forgetPanel.style.display = mode === 'forget' ? 'block' : 'none';
+
+  if (mode === 'forget') {
+    resetForgetPasswordFlow();
   }
 }
 
-function handleLogin() {
-  const email = document.getElementById('login-email').value.trim();
-  const pass = document.getElementById('login-password').value;
+interface AuthUserResponse {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  departmentId: number | null;
+  status: string;
+  createdAt: string;
+}
 
-  // Simple hardcoded login validator or employee selector
-  const foundUser = state.employees.find(e => e.email.toLowerCase() === email.toLowerCase());
+interface AuthResponseData {
+  user: AuthUserResponse;
+  token: string;
+}
 
-  if (!foundUser) {
-    showToast("Account email details not registered.", "danger");
-    return;
+const AUTH_TOKEN_STORAGE_KEY = 'assetflow_auth_token';
+
+function mapBackendRoleToFrontendRole(role: string): Role {
+  switch (role) {
+    case 'SUPER_ADMIN':
+      return 'admin';
+    case 'MANAGER':
+      return 'manager';
+    case 'IT_SUPPORT':
+      return 'head';
+    default:
+      return 'employee';
   }
+}
 
-  // Simulate loading state on the button
-  const submitBtn = document.getElementById('btn-login-submit');
+async function handleLogin(): Promise<void> {
+  const email = getEl<HTMLInputElement>('login-email').value.trim();
+  const password = getEl<HTMLInputElement>('login-password').value;
+
+  const submitBtn = getEl<HTMLButtonElement>('btn-login-submit');
   submitBtn.disabled = true;
   submitBtn.innerHTML = `<span class="skeleton skeleton-text" style="width:50px; margin:0 auto;"></span>`;
 
-  setTimeout(() => {
-    state.currentUser = foundUser;
-    state.activeRole = foundUser.role; // Auto sync simulation role
+  try {
+    const payload = await apiRequest<AuthResponseData>('/auth/login', {
+      method: 'POST',
+      body: { email, password },
+      auth: false
+    });
+
+    if (!payload.success || !payload.data) {
+      showToast(payload.message || 'Login failed. Please check your credentials.', 'danger');
+      return;
+    }
+
+    const { user, token } = payload.data;
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+
+    const mappedRole = mapBackendRoleToFrontendRole(user.role);
+    const foundUser = {
+      id: `e-${user.id}`,
+      name: user.name,
+      email: user.email,
+      departmentId: user.departmentId ? `d-${user.departmentId}` : 'd-1',
+      role: mappedRole,
+      status: user.status === 'SUSPENDED' ? ('inactive' as const) : ('active' as const)
+    };
+
+    const existingEmployee = state.employees.find((e) => e.email.toLowerCase() === foundUser.email.toLowerCase());
+    if (!existingEmployee) {
+      state.employees.push(foundUser);
+    }
+
+    state.currentUser = existingEmployee ?? foundUser;
+    state.activeRole = mappedRole; // Auto sync simulation role
     saveState();
 
     // Hide auth screen, reveal app workspace
     document.body.classList.remove('auth-mode');
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('app-shell').style.display = 'flex';
+    getEl('auth-screen').style.display = 'none';
+    getEl('app-shell').style.display = 'flex';
 
     // Populate navbar elements
-    document.getElementById('navbar-user-name').textContent = foundUser.name;
-    document.getElementById('dropdown-user-name').textContent = foundUser.name;
-    document.getElementById('dropdown-user-email').textContent = foundUser.email;
-    document.getElementById('navbar-user-role').textContent = formatRoleName(foundUser.role);
-    document.getElementById('user-avatar-initials').textContent = foundUser.name.split(' ').map(n=>n[0]).join('');
-    
+    getEl('navbar-user-name').textContent = state.currentUser.name;
+    getEl('dropdown-user-name').textContent = state.currentUser.name;
+    getEl('dropdown-user-email').textContent = state.currentUser.email;
+    getEl('navbar-user-role').textContent = formatRoleName(state.currentUser.role);
+    getEl('user-avatar-initials').textContent = state.currentUser.name
+      .split(' ')
+      .map((n) => n[0])
+      .join('');
+
     // Set Sidebar switcher role options
-    document.getElementById('role-switcher-select').value = foundUser.role;
-    changeActiveRole(foundUser.role, false); // Initialize visual restrictions
+    getEl<HTMLSelectElement>('role-switcher-select').value = state.currentUser.role;
+    changeActiveRole(state.currentUser.role, false); // Initialize visual restrictions
 
-    showToast(`Welcome back, ${foundUser.name}!`, "success");
+    showToast(`Welcome back, ${state.currentUser.name}!`, 'success');
     navigate('dashboard');
-
+  } catch (error) {
+    console.error('Login request failed', error);
+    showToast('Unable to reach the AssetFlow server. Please try again.', 'danger');
+  } finally {
     submitBtn.disabled = false;
     submitBtn.innerHTML = `<span>Sign In</span>`;
-  }, 1200);
+  }
 }
 
-function handleSignup() {
-  const name = document.getElementById('signup-name').value.trim();
-  const email = document.getElementById('signup-email').value.trim();
-  const pass = document.getElementById('signup-password').value;
+async function handleSignup(): Promise<void> {
+  const name = getEl<HTMLInputElement>('signup-name').value.trim();
+  const email = getEl<HTMLInputElement>('signup-email').value.trim();
+  const password = getEl<HTMLInputElement>('signup-password').value;
 
-  // Email conflict checker
-  const exists = state.employees.some(e => e.email.toLowerCase() === email.toLowerCase());
-  if (exists) {
-    showToast("This corporate email is already registered.", "warning");
-    return;
-  }
-
-  const submitBtn = document.getElementById('btn-signup-submit');
+  const submitBtn = getEl<HTMLButtonElement>('btn-signup-submit');
   submitBtn.disabled = true;
   submitBtn.innerHTML = `<span class="skeleton skeleton-text" style="width:50px; margin:0 auto;"></span>`;
 
-  setTimeout(() => {
-    const newEmp = {
-      id: `e-${state.employees.length + 1}`,
-      name: name,
-      email: email,
-      departmentId: 'd-1', // Default assigned to Eng
-      role: 'employee', // Normal employee at sign up
-      status: 'active'
-    };
+  try {
+    const payload = await apiRequest<AuthResponseData>('/auth/signup', {
+      method: 'POST',
+      body: { name, email, password },
+      auth: false
+    });
 
-    state.employees.push(newEmp);
-    
-    // Log activity
+    if (!payload.success || !payload.data) {
+      const detail = payload.message || 'Registration failed. Please review the form and try again.';
+      showToast(detail, 'warning');
+      return;
+    }
+
+    // Log activity locally for the UI's audit trail widget
     state.auditLogs.unshift({
       id: `l-${state.auditLogs.length + 1}`,
       operator: name,
@@ -499,45 +618,200 @@ function handleSignup() {
       details: `Self-registered new employee account (${email})`,
       timestamp: formatLogDate(new Date())
     });
-
     saveState();
-    showToast("Registration completed! Please sign in.", "success");
-    
+
+    showToast('Registration completed! Please sign in.', 'success');
+
     // Switch forms
     toggleAuthPanel('login');
-    document.getElementById('login-email').value = email;
-    document.getElementById('login-password').value = '';
-
+    getEl<HTMLInputElement>('login-email').value = email;
+    getEl<HTMLInputElement>('login-password').value = '';
+  } catch (error) {
+    console.error('Signup request failed', error);
+    showToast('Unable to reach the AssetFlow server. Please try again.', 'danger');
+  } finally {
     submitBtn.disabled = false;
     submitBtn.innerHTML = `<span>Create Account</span>`;
-  }, 1000);
+  }
 }
 
-function handleForgotPassword() {
-  showToast("A password recovery link has been simulated to your inbox.", "success");
+// ================= FORGET PASSWORD (OTP) FLOW =================
+let forgetPasswordEmail = '';
+
+function showFpError(elementId: string, message: string): void {
+  const el = getEl(elementId);
+  el.textContent = message;
+  el.style.display = 'block';
 }
 
-function handleLogout() {
+function hideFpError(elementId: string): void {
+  const el = getEl(elementId);
+  el.textContent = '';
+  el.style.display = 'none';
+}
+
+function resetForgetPasswordFlow(): void {
+  forgetPasswordEmail = '';
+  getEl<HTMLInputElement>('fp-email').value = '';
+  getEl<HTMLInputElement>('fp-otp').value = '';
+  getEl<HTMLInputElement>('fp-new-password').value = '';
+  getEl<HTMLInputElement>('fp-confirm-password').value = '';
+  hideFpError('fp-email-error');
+  hideFpError('fp-otp-error');
+  hideFpError('fp-reset-error');
+  getEl('fp-section-email').style.display = 'block';
+  getEl('fp-section-otp').style.display = 'none';
+  getEl('fp-section-reset').style.display = 'none';
+  getEl('fp-subtitle').textContent = 'Enter your registered email to receive a one-time verification code.';
+}
+
+async function submitForgetPasswordEmail(): Promise<void> {
+  const email = getEl<HTMLInputElement>('fp-email').value.trim();
+  hideFpError('fp-email-error');
+
+  const submitBtn = getEl<HTMLButtonElement>('btn-fp-email-submit');
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = `<span class="skeleton skeleton-text" style="width:50px; margin:0 auto;"></span>`;
+
+  try {
+    const payload = await apiRequest<null>('/auth/forget-password', {
+      method: 'POST',
+      body: { email },
+      auth: false
+    });
+
+    if (!payload.success) {
+      showFpError('fp-email-error', payload.message || 'Email does not exist.');
+      return;
+    }
+
+    forgetPasswordEmail = email;
+    getEl('fp-subtitle').textContent = `Enter the 6-digit code sent for ${email}.`;
+    getEl('fp-section-email').style.display = 'none';
+    getEl('fp-section-otp').style.display = 'block';
+    showToast('OTP sent successfully. Check the server logs for the verification code.', 'success');
+  } catch (error) {
+    console.error('Forget password request failed', error);
+    showFpError('fp-email-error', 'Unable to reach the AssetFlow server. Please try again.');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `<span>Send OTP</span>`;
+  }
+}
+
+async function submitVerifyOtp(): Promise<void> {
+  const otp = getEl<HTMLInputElement>('fp-otp').value.trim();
+  hideFpError('fp-otp-error');
+
+  const submitBtn = getEl<HTMLButtonElement>('btn-fp-otp-submit');
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = `<span class="skeleton skeleton-text" style="width:50px; margin:0 auto;"></span>`;
+
+  try {
+    const payload = await apiRequest<null>('/auth/verify-otp', {
+      method: 'POST',
+      body: { email: forgetPasswordEmail, otp },
+      auth: false
+    });
+
+    if (!payload.success) {
+      showFpError('fp-otp-error', payload.message || 'Invalid OTP code.');
+      return;
+    }
+
+    getEl('fp-subtitle').textContent = 'Choose a new password for your account.';
+    getEl('fp-section-otp').style.display = 'none';
+    getEl('fp-section-reset').style.display = 'block';
+    showToast('OTP verified successfully.', 'success');
+  } catch (error) {
+    console.error('Verify OTP request failed', error);
+    showFpError('fp-otp-error', 'Unable to reach the AssetFlow server. Please try again.');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `<span>Verify Code</span>`;
+  }
+}
+
+async function submitResetPassword(): Promise<void> {
+  const newPassword = getEl<HTMLInputElement>('fp-new-password').value;
+  const confirmPassword = getEl<HTMLInputElement>('fp-confirm-password').value;
+  hideFpError('fp-reset-error');
+
+  if (newPassword !== confirmPassword) {
+    showFpError('fp-reset-error', 'Passwords do not match.');
+    return;
+  }
+
+  const submitBtn = getEl<HTMLButtonElement>('btn-fp-reset-submit');
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = `<span class="skeleton skeleton-text" style="width:50px; margin:0 auto;"></span>`;
+
+  try {
+    const payload = await apiRequest<null>('/auth/reset-password', {
+      method: 'POST',
+      body: { email: forgetPasswordEmail, newPassword, confirmPassword },
+      auth: false
+    });
+
+    if (!payload.success) {
+      showFpError('fp-reset-error', payload.message || 'Unable to reset password.');
+      return;
+    }
+
+    const resetEmail = forgetPasswordEmail;
+    showToast('Password reset successfully! Please sign in.', 'success');
+    toggleAuthPanel('login');
+    getEl<HTMLInputElement>('login-email').value = resetEmail;
+    getEl<HTMLInputElement>('login-password').value = '';
+  } catch (error) {
+    console.error('Reset password request failed', error);
+    showFpError('fp-reset-error', 'Unable to reach the AssetFlow server. Please try again.');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `<span>Reset Password</span>`;
+  }
+}
+
+function togglePasswordVisibility(inputId: string, button: HTMLElement): void {
+  const input = getEl<HTMLInputElement>(inputId);
+  const isCurrentlyPassword = input.type === 'password';
+  input.type = isCurrentlyPassword ? 'text' : 'password';
+
+  button.innerHTML = '';
+  const icon = document.createElement('i');
+  icon.setAttribute('data-lucide', isCurrentlyPassword ? 'eye-off' : 'eye');
+  button.appendChild(icon);
+  lucide.createIcons();
+}
+
+function bindPasswordToggle(buttonId: string, inputId: string): void {
+  const button = getElOrNull<HTMLButtonElement>(buttonId);
+  if (!button) return;
+  button.addEventListener('click', () => togglePasswordVisibility(inputId, button));
+}
+
+function handleLogout(): void {
   state.currentUser = null;
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
   saveState();
-  
-  document.getElementById('app-shell').style.display = 'none';
-  document.getElementById('auth-screen').style.display = 'flex';
+
+  getEl('app-shell').style.display = 'none';
+  getEl('auth-screen').style.display = 'flex';
   document.body.classList.add('auth-mode');
-  showToast("Logged out successfully", "primary");
+  showToast('Logged out successfully', 'primary');
 }
 
 // ================= ROLE SWITCHER & PERMISSION ENFORCEMENT =================
-function changeActiveRole(role, notify = true) {
+function changeActiveRole(role: Role, notify = true): void {
   state.activeRole = role;
-  
+
   // Visual marker in footer
-  const badge = document.getElementById('current-role-badge');
+  const badge = getEl('current-role-badge');
   badge.textContent = formatRoleName(role);
   badge.className = `badge ${role === 'admin' ? 'badge-available' : role === 'manager' ? 'badge-allocated' : role === 'head' ? 'badge-reserved' : 'badge-retired'}`;
-  
+
   // Disable or hide Org Setup in Sidebar if not Admin
-  const orgSetupBtn = document.getElementById('nav-org-setup');
+  const orgSetupBtn = getEl('nav-org-setup');
   if (role !== 'admin') {
     orgSetupBtn.style.opacity = '0.4';
     orgSetupBtn.style.pointerEvents = 'none';
@@ -554,70 +828,69 @@ function changeActiveRole(role, notify = true) {
   }
 
   if (notify) {
-    showToast(`Switched view mode to: ${formatRoleName(role)}`, "primary");
+    showToast(`Switched view mode to: ${formatRoleName(role)}`, 'primary');
   }
 }
 
 // ================= BREADCRUMBS & ORG SELECTORS =================
-function toggleOrgDropdown() {
-  const currentOrg = document.getElementById('current-org-name').textContent;
+function toggleOrgDropdown(): void {
+  const currentOrg = getEl('current-org-name').textContent;
   const targetOrg = currentOrg === 'Global HQ' ? 'NYC Branch' : 'Global HQ';
-  document.getElementById('current-org-name').textContent = targetOrg;
-  document.getElementById('breadcrumb-company').textContent = targetOrg;
-  showToast(`Switched segment context to ${targetOrg}`, "success");
+  getEl('current-org-name').textContent = targetOrg;
+  getEl('breadcrumb-company').textContent = targetOrg;
+  showToast(`Switched segment context to ${targetOrg}`, 'success');
 }
 
-function toggleProfileDropdown(e) {
+function toggleProfileDropdown(e: Event): void {
   e.stopPropagation();
-  document.getElementById('profile-dropdown').classList.toggle('show');
+  getEl('profile-dropdown').classList.toggle('show');
 }
 
 // Close profiles dropdown when clicked elsewhere
 document.addEventListener('click', () => {
-  const dropdown = document.getElementById('profile-dropdown');
+  const dropdown = getElOrNull('profile-dropdown');
   if (dropdown && dropdown.classList.contains('show')) {
     dropdown.classList.remove('show');
   }
 });
 
-
 // ================= PAGE 2: DASHBOARD CONTROLLERS =================
-function loadDashboardPage() {
+function loadDashboardPage(): void {
   // Welcome Text
   if (state.currentUser) {
-    document.getElementById('dashboard-welcome').textContent = `Welcome, ${state.currentUser.name}`;
+    getEl('dashboard-welcome').textContent = `Welcome, ${state.currentUser.name}`;
   }
 
   // Calculations for KPIs
-  const availableCount = state.assets.filter(a => a.status === 'available').length;
-  const allocatedCount = state.assets.filter(a => a.status === 'allocated').length;
-  const maintenanceCount = state.maintenance.filter(m => m.status !== 'resolved').length;
-  const activeBookings = state.bookings.filter(b => b.status === 'ongoing' || b.status === 'upcoming').length;
-  const pendingTransfers = state.transfers.filter(t => t.status === 'pending').length;
-  const overdueReturns = state.allocations.filter(al => al.status === 'overdue').length;
+  const availableCount = state.assets.filter((a) => a.status === 'available').length;
+  const allocatedCount = state.assets.filter((a) => a.status === 'allocated').length;
+  const maintenanceCount = state.maintenance.filter((m) => m.status !== 'resolved').length;
+  const activeBookings = state.bookings.filter((b) => b.status === 'ongoing' || b.status === 'upcoming').length;
+  const pendingTransfers = state.transfers.filter((t) => t.status === 'pending').length;
+  const overdueReturns = state.allocations.filter((al) => al.status === 'overdue').length;
 
-  document.getElementById('kpi-available').textContent = availableCount;
-  document.getElementById('kpi-allocated').textContent = allocatedCount;
-  document.getElementById('kpi-maintenance').textContent = maintenanceCount;
-  document.getElementById('kpi-bookings').textContent = activeBookings;
-  document.getElementById('kpi-transfers').textContent = pendingTransfers;
-  document.getElementById('kpi-returns').textContent = overdueReturns;
+  getEl('kpi-available').textContent = String(availableCount);
+  getEl('kpi-allocated').textContent = String(allocatedCount);
+  getEl('kpi-maintenance').textContent = String(maintenanceCount);
+  getEl('kpi-bookings').textContent = String(activeBookings);
+  getEl('kpi-transfers').textContent = String(pendingTransfers);
+  getEl('kpi-returns').textContent = String(overdueReturns);
 
   // Render Charts
   renderDashboardCharts();
 
   // Render Activities Widget
-  const listContainer = document.getElementById('widget-activity-list');
+  const listContainer = getEl('widget-activity-list');
   listContainer.innerHTML = '';
-  
+
   // Show last 4 audit logs
-  state.auditLogs.slice(0, 4).forEach(log => {
+  state.auditLogs.slice(0, 4).forEach((log) => {
     let dotClass = 'primary';
     if (log.action === 'CREATE') dotClass = 'success';
     if (log.action === 'ASSIGN') dotClass = 'primary';
     if (log.action === 'MAINTENANCE') dotClass = 'danger';
     if (log.action === 'RETURN') dotClass = 'warning';
-    
+
     listContainer.innerHTML += `
       <div class="activity-item">
         <div class="activity-dot ${dotClass}"></div>
@@ -631,16 +904,16 @@ function loadDashboardPage() {
   });
 
   // Render Overdue return items
-  const overdueTable = document.getElementById('widget-overdue-table');
+  const overdueTable = getEl('widget-overdue-table');
   overdueTable.innerHTML = '';
-  
-  const overdueAllocs = state.allocations.filter(al => al.status === 'overdue');
+
+  const overdueAllocs = state.allocations.filter((al) => al.status === 'overdue');
   if (overdueAllocs.length === 0) {
     overdueTable.innerHTML = `<tr><td style="color:var(--text-muted); text-align:center;">No overdue assets!</td></tr>`;
   } else {
-    overdueAllocs.forEach(al => {
-      const asset = state.assets.find(a => a.id === al.assetId);
-      const employee = state.employees.find(e => e.id === al.employeeId);
+    overdueAllocs.forEach((al) => {
+      const asset = state.assets.find((a) => a.id === al.assetId);
+      const employee = state.employees.find((e) => e.id === al.employeeId);
       overdueTable.innerHTML += `
         <tr>
           <td style="font-weight:600; padding: 0.5rem 0.75rem;">${asset ? asset.name : 'Asset'}</td>
@@ -654,10 +927,10 @@ function loadDashboardPage() {
   }
 
   // Render priority bulletins widget
-  const bulletins = document.getElementById('widget-bulletins');
+  const bulletins = getEl('widget-bulletins');
   bulletins.innerHTML = '';
-  
-  const unreadNotifs = state.notifications.filter(n => !n.isRead);
+
+  const unreadNotifs = state.notifications.filter((n) => !n.isRead);
   if (unreadNotifs.length === 0) {
     bulletins.innerHTML = `
       <div style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding:1rem 0;">
@@ -665,7 +938,7 @@ function loadDashboardPage() {
       </div>
     `;
   } else {
-    unreadNotifs.slice(0, 2).forEach(n => {
+    unreadNotifs.slice(0, 2).forEach((n) => {
       bulletins.innerHTML += `
         <div style="background-color: var(--primary-light); border-left:3px solid var(--primary); padding: 0.5rem 0.75rem; border-radius: 4px; font-size:0.75rem;">
           <strong>${n.type}:</strong> ${n.content}
@@ -677,27 +950,29 @@ function loadDashboardPage() {
   updateGlobalUnreadIndicators();
 }
 
-function renderDashboardCharts() {
+function renderDashboardCharts(): void {
   const isDark = document.body.classList.contains('dark-mode');
   const textColor = isDark ? '#94A3B8' : '#64748B';
   const gridColor = isDark ? '#334155' : '#E2E8F0';
 
   // 1. Asset Utilization Line Chart
   if (charts.utilization) charts.utilization.destroy();
-  
-  const ctx1 = document.getElementById('chart-utilization').getContext('2d');
+
+  const ctx1 = getCanvasContext('chart-utilization');
   charts.utilization = new Chart(ctx1, {
     type: 'line',
     data: {
       labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
-      datasets: [{
-        label: 'Utilization Rate (%)',
-        data: [78, 81, 85, 84, 89, 92, 94],
-        borderColor: '#2563EB',
-        backgroundColor: 'rgba(37, 99, 235, 0.05)',
-        tension: 0.3,
-        fill: true
-      }]
+      datasets: [
+        {
+          label: 'Utilization Rate (%)',
+          data: [78, 81, 85, 84, 89, 92, 94],
+          borderColor: '#2563EB',
+          backgroundColor: 'rgba(37, 99, 235, 0.05)',
+          tension: 0.3,
+          fill: true
+        }
+      ]
     },
     options: {
       responsive: true,
@@ -722,7 +997,7 @@ function renderDashboardCharts() {
 
   // 2. Maintenance Bar Chart
   if (charts.maintenance) charts.maintenance.destroy();
-  const ctx2 = document.getElementById('chart-maintenance').getContext('2d');
+  const ctx2 = getCanvasContext('chart-maintenance');
   charts.maintenance = new Chart(ctx2, {
     type: 'bar',
     data: {
@@ -765,69 +1040,71 @@ function renderDashboardCharts() {
 }
 
 // ================= PAGE 3: ORGANIZATION SETUP CONTROLLERS =================
-function loadOrgSetupPage() {
+function loadOrgSetupPage(): void {
   renderDepartments();
   renderCategories();
   renderEmployees();
 
   // Seed department head select lists in forms
-  const headSelect = document.getElementById('dept-add-head');
+  const headSelect = getElOrNull<HTMLSelectElement>('dept-add-head');
   if (headSelect) {
     headSelect.innerHTML = '';
-    state.employees.forEach(emp => {
+    state.employees.forEach((emp) => {
       headSelect.innerHTML += `<option value="${emp.name}">${emp.name}</option>`;
     });
   }
 
   // Seed parent department in forms
-  const parentSelect = document.getElementById('dept-add-parent');
+  const parentSelect = getElOrNull<HTMLSelectElement>('dept-add-parent');
   if (parentSelect) {
     parentSelect.innerHTML = '<option value="">None (Top-level division)</option>';
-    state.departments.forEach(dept => {
+    state.departments.forEach((dept) => {
       parentSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
     });
   }
 
   // Seed department selector filter in Employee list
-  const filterDept = document.getElementById('emp-filter-dept');
+  const filterDept = getElOrNull<HTMLSelectElement>('emp-filter-dept');
   if (filterDept) {
     filterDept.innerHTML = '<option value="">All Departments</option>';
-    state.departments.forEach(dept => {
+    state.departments.forEach((dept) => {
       filterDept.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
     });
   }
 }
 
-function switchSetupTab(e, tabId) {
+function switchSetupTab(e: MouseEvent, tabId: string): void {
+  const target = e.target as HTMLElement;
   // Toggle tab buttons visual
-  e.target.parentNode.querySelectorAll('.tab-btn').forEach(btn => {
+  target.parentNode?.querySelectorAll('.tab-btn').forEach((btn) => {
     btn.classList.remove('active');
   });
-  e.target.classList.add('active');
+  target.classList.add('active');
 
   // Toggle visible pane
-  const parentSection = e.target.closest('.page-section');
-  parentSection.querySelectorAll('.tab-pane').forEach(pane => {
+  const parentSection = target.closest('.page-section');
+  parentSection?.querySelectorAll('.tab-pane').forEach((pane) => {
     pane.classList.remove('active');
   });
-  document.getElementById(tabId).classList.add('active');
+  getEl(tabId).classList.add('active');
 }
 
-function renderDepartments() {
-  const tbody = document.getElementById('dept-table-body');
+function renderDepartments(): void {
+  const tbody = getElOrNull('dept-table-body');
   if (!tbody) return;
 
-  const searchQuery = document.getElementById('dept-search').value.toLowerCase();
+  const searchQuery = getEl<HTMLInputElement>('dept-search').value.toLowerCase();
   tbody.innerHTML = '';
 
-  const filteredDepts = state.departments.filter(d => 
-    d.name.toLowerCase().includes(searchQuery) ||
-    d.code.toLowerCase().includes(searchQuery) ||
-    d.head.toLowerCase().includes(searchQuery)
+  const filteredDepts = state.departments.filter(
+    (d) =>
+      d.name.toLowerCase().includes(searchQuery) ||
+      d.code.toLowerCase().includes(searchQuery) ||
+      d.head.toLowerCase().includes(searchQuery)
   );
 
-  filteredDepts.forEach(dept => {
-    const parentDept = state.departments.find(d => d.id === dept.parent);
+  filteredDepts.forEach((dept) => {
+    const parentDept = state.departments.find((d) => d.id === dept.parent);
     const parentName = parentDept ? parentDept.name : '—';
     const statusText = dept.status === 'active' ? 'Active' : 'Inactive';
     const statusBadge = dept.status === 'active' ? 'badge-available' : 'badge-retired';
@@ -847,25 +1124,25 @@ function renderDepartments() {
   });
 }
 
-function toggleDeptStatus(deptId) {
-  const dept = state.departments.find(d => d.id === deptId);
+function toggleDeptStatus(deptId: string): void {
+  const dept = state.departments.find((d) => d.id === deptId);
   if (dept) {
     dept.status = dept.status === 'active' ? 'inactive' : 'active';
     saveState();
     renderDepartments();
-    showToast(`Status of ${dept.name} toggled.`, "success");
+    showToast(`Status of ${dept.name} toggled.`, 'success');
   }
 }
 
-function renderCategories() {
-  const grid = document.getElementById('category-cards-grid');
+function renderCategories(): void {
+  const grid = getElOrNull('category-cards-grid');
   if (!grid) return;
 
   grid.innerHTML = '';
 
-  state.categories.forEach(cat => {
-    let count = state.assets.filter(a => a.categoryId === cat.id).length;
-    
+  state.categories.forEach((cat) => {
+    const count = state.assets.filter((a) => a.categoryId === cat.id).length;
+
     let lucideIcon = 'package';
     if (cat.icon === 'laptop') lucideIcon = 'laptop';
     if (cat.icon === 'smartphone') lucideIcon = 'smartphone';
@@ -899,17 +1176,17 @@ function renderCategories() {
 let empCurrentPage = 1;
 const empPageSize = 5;
 
-function renderEmployees() {
-  const tbody = document.getElementById('employee-table-body');
+function renderEmployees(): void {
+  const tbody = getElOrNull('employee-table-body');
   if (!tbody) return;
 
-  const search = document.getElementById('emp-search').value.toLowerCase();
-  const deptFilter = document.getElementById('emp-filter-dept').value;
-  const roleFilter = document.getElementById('emp-filter-role').value;
+  const search = getEl<HTMLInputElement>('emp-search').value.toLowerCase();
+  const deptFilter = getEl<HTMLSelectElement>('emp-filter-dept').value;
+  const roleFilter = getEl<HTMLSelectElement>('emp-filter-role').value;
 
   tbody.innerHTML = '';
 
-  let filtered = state.employees.filter(emp => {
+  const filtered = state.employees.filter((emp) => {
     const matchesSearch = emp.name.toLowerCase().includes(search) || emp.email.toLowerCase().includes(search);
     const matchesDept = !deptFilter || emp.departmentId === deptFilter;
     const matchesRole = !roleFilter || emp.role === roleFilter;
@@ -919,21 +1196,22 @@ function renderEmployees() {
   // Pagination logic
   const total = filtered.length;
   const pages = Math.ceil(total / empPageSize);
-  
+
   if (empCurrentPage > pages) empCurrentPage = Math.max(1, pages);
-  
+
   const start = (empCurrentPage - 1) * empPageSize;
   const end = Math.min(start + empPageSize, total);
-  
+
   // Update buttons
-  document.getElementById('btn-emp-prev').disabled = empCurrentPage <= 1;
-  document.getElementById('btn-emp-next').disabled = empCurrentPage >= pages;
-  document.getElementById('emp-pagination-info').textContent = total === 0 ? 'No employees found' : `Showing ${start + 1}-${end} of ${total} employees`;
+  getEl<HTMLButtonElement>('btn-emp-prev').disabled = empCurrentPage <= 1;
+  getEl<HTMLButtonElement>('btn-emp-next').disabled = empCurrentPage >= pages;
+  getEl('emp-pagination-info').textContent =
+    total === 0 ? 'No employees found' : `Showing ${start + 1}-${end} of ${total} employees`;
 
   const paginated = filtered.slice(start, end);
 
-  paginated.forEach(emp => {
-    const dept = state.departments.find(d => d.id === emp.departmentId);
+  paginated.forEach((emp) => {
+    const dept = state.departments.find((d) => d.id === emp.departmentId);
     const deptName = dept ? dept.name : 'Unassigned';
     const statusText = emp.status === 'active' ? 'Active' : 'Inactive';
     const statusBadge = emp.status === 'active' ? 'badge-available' : 'badge-retired';
@@ -965,22 +1243,22 @@ function renderEmployees() {
   });
 }
 
-function handleEmpPageChange(dir) {
+function handleEmpPageChange(dir: number): void {
   empCurrentPage += dir;
   renderEmployees();
 }
 
-function promoteEmployee(empId, newRole) {
+function promoteEmployee(empId: string, newRole: Role): void {
   if (state.activeRole !== 'admin') {
-    showToast("Role adjustment requires Administrator privileges.", "danger");
+    showToast('Role adjustment requires Administrator privileges.', 'danger');
     return;
   }
 
-  const emp = state.employees.find(e => e.id === empId);
+  const emp = state.employees.find((e) => e.id === empId);
   if (emp) {
     const oldRole = emp.role;
     emp.role = newRole;
-    
+
     // Log activity
     state.auditLogs.unshift({
       id: `l-${state.auditLogs.length + 1}`,
@@ -996,33 +1274,33 @@ function promoteEmployee(empId, newRole) {
       id: `n-${state.notifications.length + 1}`,
       type: 'Asset Assigned', // fallback type
       content: `Your profile security permission role has been adjusted to ${formatRoleName(newRole)}.`,
-      date: formatLogDate(new Date()).split(' ')[0],
+      date: formatLogDate(new Date()).split(' ')[0] ?? '',
       isRead: false
     });
 
     saveState();
     renderEmployees();
-    showToast(`Role of ${emp.name} promoted to ${formatRoleName(newRole)}`, "success");
+    showToast(`Role of ${emp.name} promoted to ${formatRoleName(newRole)}`, 'success');
   }
 }
 
-function toggleEmployeeStatus(empId) {
-  const emp = state.employees.find(e => e.id === empId);
+function toggleEmployeeStatus(empId: string): void {
+  const emp = state.employees.find((e) => e.id === empId);
   if (emp) {
     emp.status = emp.status === 'active' ? 'inactive' : 'active';
     saveState();
     renderEmployees();
-    showToast(`Status of ${emp.name} set to ${emp.status}.`, "success");
+    showToast(`Status of ${emp.name} set to ${emp.status}.`, 'success');
   }
 }
 
-function submitAddDept() {
-  const name = document.getElementById('dept-add-name').value.trim();
-  const code = document.getElementById('dept-add-code').value.trim().toUpperCase();
-  const parent = document.getElementById('dept-add-parent').value;
-  const head = document.getElementById('dept-add-head').value;
+function submitAddDept(): void {
+  const name = getEl<HTMLInputElement>('dept-add-name').value.trim();
+  const code = getEl<HTMLInputElement>('dept-add-code').value.trim().toUpperCase();
+  const parent = getEl<HTMLSelectElement>('dept-add-parent').value;
+  const head = getEl<HTMLSelectElement>('dept-add-head').value;
 
-  const newDept = {
+  const newDept: Department = {
     id: `d-${state.departments.length + 1}`,
     name,
     code,
@@ -1033,7 +1311,7 @@ function submitAddDept() {
   };
 
   state.departments.push(newDept);
-  
+
   // Audit log
   state.auditLogs.unshift({
     id: `l-${state.auditLogs.length + 1}`,
@@ -1047,14 +1325,14 @@ function submitAddDept() {
   saveState();
   closeModal('modal-add-dept');
   loadOrgSetupPage();
-  showToast(`Department ${name} successfully configured!`, "success");
+  showToast(`Department ${name} successfully configured!`, 'success');
 }
 
-function submitAddCategory() {
-  const name = document.getElementById('cat-add-name').value.trim();
-  const icon = document.getElementById('cat-add-icon').value;
-  const warranty = parseInt(document.getElementById('cat-add-warranty').value);
-  const custom = document.getElementById('cat-add-custom').value.trim();
+function submitAddCategory(): void {
+  const name = getEl<HTMLInputElement>('cat-add-name').value.trim();
+  const icon = getEl<HTMLSelectElement>('cat-add-icon').value;
+  const warranty = parseInt(getEl<HTMLInputElement>('cat-add-warranty').value, 10);
+  const custom = getEl<HTMLInputElement>('cat-add-custom').value.trim();
 
   const newCat = {
     id: `c-${state.categories.length + 1}`,
@@ -1065,7 +1343,7 @@ function submitAddCategory() {
   };
 
   state.categories.push(newCat);
-  
+
   state.auditLogs.unshift({
     id: `l-${state.auditLogs.length + 1}`,
     operator: state.currentUser ? state.currentUser.name : 'System Admin',
@@ -1078,19 +1356,18 @@ function submitAddCategory() {
   saveState();
   closeModal('modal-add-category');
   loadOrgSetupPage();
-  showToast(`Asset category ${name} created!`, "success");
+  showToast(`Asset category ${name} created!`, 'success');
 }
 
-
 // ================= PAGE 4: ASSET DIRECTORY CONTROLLERS =================
-function switchAssetView(view) {
+function switchAssetView(view: 'grid' | 'table'): void {
   state.assetView = view;
-  
-  const gridContainer = document.getElementById('asset-grid-container');
-  const tableContainer = document.getElementById('asset-table-container');
-  
-  const gridBtn = document.getElementById('btn-asset-view-grid');
-  const tableBtn = document.getElementById('btn-asset-view-table');
+
+  const gridContainer = getEl('asset-grid-container');
+  const tableContainer = getEl('asset-table-container');
+
+  const gridBtn = getEl('btn-asset-view-grid');
+  const tableBtn = getEl('btn-asset-view-table');
 
   if (view === 'grid') {
     gridContainer.style.display = 'grid';
@@ -1110,30 +1387,30 @@ function switchAssetView(view) {
   renderAssets();
 }
 
-function loadAssetsPage() {
+function loadAssetsPage(): void {
   // Populate Category filter dropdown
-  const filterCat = document.getElementById('asset-filter-cat');
+  const filterCat = getElOrNull<HTMLSelectElement>('asset-filter-cat');
   if (filterCat) {
     filterCat.innerHTML = '<option value="">Categories</option>';
-    state.categories.forEach(cat => {
+    state.categories.forEach((cat) => {
       filterCat.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
     });
   }
 
   // Populate registration category list
-  const regCat = document.getElementById('reg-cat');
+  const regCat = getElOrNull<HTMLSelectElement>('reg-cat');
   if (regCat) {
     regCat.innerHTML = '';
-    state.categories.forEach(cat => {
+    state.categories.forEach((cat) => {
       regCat.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
     });
   }
 
   // Populate QR simulation selector list
-  const qrSim = document.getElementById('qr-simulate-select');
+  const qrSim = getElOrNull<HTMLSelectElement>('qr-simulate-select');
   if (qrSim) {
     qrSim.innerHTML = '';
-    state.assets.forEach(asset => {
+    state.assets.forEach((asset) => {
       qrSim.innerHTML += `<option value="${asset.id}">${asset.name} (${asset.assetTag})</option>`;
     });
   }
@@ -1141,21 +1418,22 @@ function loadAssetsPage() {
   renderAssets();
 }
 
-function renderAssets() {
-  const gridContainer = document.getElementById('asset-grid-container');
-  const tableBody = document.getElementById('asset-table-body');
+function renderAssets(): void {
+  const gridContainer = getElOrNull('asset-grid-container');
+  const tableBody = getElOrNull('asset-table-body');
   if (!gridContainer || !tableBody) return;
 
-  const search = document.getElementById('asset-search').value.toLowerCase();
-  const catFilter = document.getElementById('asset-filter-cat').value;
-  const statusFilter = document.getElementById('asset-filter-status').value;
-  const conditionFilter = document.getElementById('asset-filter-condition').value;
+  const search = getEl<HTMLInputElement>('asset-search').value.toLowerCase();
+  const catFilter = getEl<HTMLSelectElement>('asset-filter-cat').value;
+  const statusFilter = getEl<HTMLSelectElement>('asset-filter-status').value;
+  const conditionFilter = getEl<HTMLSelectElement>('asset-filter-condition').value;
 
   // Filter logic
-  const filtered = state.assets.filter(asset => {
-    const matchesSearch = asset.name.toLowerCase().includes(search) || 
-                          asset.assetTag.toLowerCase().includes(search) ||
-                          asset.serial.toLowerCase().includes(search);
+  const filtered = state.assets.filter((asset) => {
+    const matchesSearch =
+      asset.name.toLowerCase().includes(search) ||
+      asset.assetTag.toLowerCase().includes(search) ||
+      asset.serial.toLowerCase().includes(search);
     const matchesCat = !catFilter || asset.categoryId === catFilter;
     const matchesStatus = !statusFilter || asset.status === statusFilter;
     const matchesCondition = !conditionFilter || asset.condition === conditionFilter;
@@ -1172,15 +1450,15 @@ function renderAssets() {
     return;
   }
 
-  filtered.forEach(asset => {
-    const cat = state.categories.find(c => c.id === asset.categoryId);
+  filtered.forEach((asset) => {
+    const cat = state.categories.find((c) => c.id === asset.categoryId);
     const catName = cat ? cat.name : 'Standard Item';
-    
+
     // Find current holder from allocations
-    const activeAlloc = state.allocations.find(al => al.assetId === asset.id && al.status !== 'returned');
+    const activeAlloc = state.allocations.find((al) => al.assetId === asset.id && al.status !== 'returned');
     let holderName = '—';
     if (activeAlloc) {
-      const emp = state.employees.find(e => e.id === activeAlloc.employeeId);
+      const emp = state.employees.find((e) => e.id === activeAlloc.employeeId);
       holderName = emp ? emp.name : 'Corporate Office';
     }
 
@@ -1202,7 +1480,7 @@ function renderAssets() {
         </div>
         <h4 style="font-size:0.95rem; font-weight:700; color:var(--text-main); margin-bottom:0.25rem;">${asset.name}</h4>
         <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:1rem;">Category: ${catName}</p>
-        
+
         <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid var(--border); padding-top:0.75rem; font-size:0.75rem;">
           <div>
             <span style="color:var(--text-muted);">Holder:</span>
@@ -1234,27 +1512,27 @@ function renderAssets() {
   });
 }
 
-function submitRegisterAsset() {
-  const name = document.getElementById('reg-name').value.trim();
-  const categoryId = document.getElementById('reg-cat').value;
-  const serial = document.getElementById('reg-serial').value.trim();
-  const cost = parseInt(document.getElementById('reg-cost').value);
-  const acquireDate = document.getElementById('reg-date').value;
-  const condition = document.getElementById('reg-condition').value;
-  const location = document.getElementById('reg-location').value.trim();
-  const isBookable = document.getElementById('reg-is-bookable').checked;
-  const warranty = document.getElementById('reg-warranty').value.trim();
+function submitRegisterAsset(): void {
+  const name = getEl<HTMLInputElement>('reg-name').value.trim();
+  const categoryId = getEl<HTMLSelectElement>('reg-cat').value;
+  const serial = getEl<HTMLInputElement>('reg-serial').value.trim();
+  const cost = parseInt(getEl<HTMLInputElement>('reg-cost').value, 10);
+  const acquireDate = getEl<HTMLInputElement>('reg-date').value;
+  const condition = getEl<HTMLSelectElement>('reg-condition').value as AssetCondition;
+  const location = getEl<HTMLInputElement>('reg-location').value.trim();
+  const isBookable = getEl<HTMLInputElement>('reg-is-bookable').checked;
+  const warranty = getEl<HTMLInputElement>('reg-warranty').value.trim();
 
   // Auto-generate Asset Tag
   const lastAsset = state.assets[state.assets.length - 1];
   let lastNum = 15;
   if (lastAsset) {
-    lastNum = parseInt(lastAsset.assetTag.replace('AF-', ''));
+    lastNum = parseInt(lastAsset.assetTag.replace('AF-', ''), 10);
   }
   const tagNum = String(lastNum + 1).padStart(4, '0');
   const assetTag = `AF-${tagNum}`;
 
-  const newAsset = {
+  const newAsset: Asset = {
     id: `a-${state.assets.length + 1}`,
     name,
     categoryId,
@@ -1284,70 +1562,75 @@ function submitRegisterAsset() {
   saveState();
   closeModal('modal-register-asset');
   loadAssetsPage();
-  showToast(`Asset successfully cataloged as ${assetTag}!`, "success");
+  showToast(`Asset successfully cataloged as ${assetTag}!`, 'success');
 }
 
-
 // ================= PAGE 5: ASSET ALLOCATION CONTROLLERS =================
-function loadAllocationsPage() {
+function loadAllocationsPage(): void {
   // Seed allocating asset options
-  const select = document.getElementById('alloc-asset-select');
+  const select = getElOrNull<HTMLSelectElement>('alloc-asset-select');
   if (select) {
     select.innerHTML = '<option value="">Choose available asset...</option>';
-    state.assets.filter(a => a.status === 'available').forEach(asset => {
-      select.innerHTML += `<option value="${asset.id}">${asset.name} (${asset.assetTag})</option>`;
-    });
+    state.assets
+      .filter((a) => a.status === 'available')
+      .forEach((asset) => {
+        select.innerHTML += `<option value="${asset.id}">${asset.name} (${asset.assetTag})</option>`;
+      });
   }
 
   // Seed allocating dept options
-  const deptSelect = document.getElementById('alloc-dept-select');
+  const deptSelect = getElOrNull<HTMLSelectElement>('alloc-dept-select');
   if (deptSelect) {
     deptSelect.innerHTML = '<option value="">Choose division...</option>';
-    state.departments.filter(d => d.status === 'active').forEach(dept => {
-      deptSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
-    });
+    state.departments
+      .filter((d) => d.status === 'active')
+      .forEach((dept) => {
+        deptSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
+      });
   }
 
   // Clear employee select until dept chosen
-  const empSelect = document.getElementById('alloc-emp-select');
+  const empSelect = getElOrNull<HTMLSelectElement>('alloc-emp-select');
   if (empSelect) empSelect.innerHTML = '<option value="">Select Department first...</option>';
 
   renderAllocations();
   renderTransferRequests();
 }
 
-function updateAllocEmployeeDropdown(deptId) {
-  const empSelect = document.getElementById('alloc-emp-select');
+function updateAllocEmployeeDropdown(deptId: string): void {
+  const empSelect = getElOrNull<HTMLSelectElement>('alloc-emp-select');
   if (!empSelect) return;
 
   empSelect.innerHTML = '<option value="">Select target employee...</option>';
-  
+
   if (!deptId) return;
 
-  state.employees.filter(e => e.departmentId === deptId && e.status === 'active').forEach(emp => {
-    empSelect.innerHTML += `<option value="${emp.id}">${emp.name}</option>`;
-  });
+  state.employees
+    .filter((e) => e.departmentId === deptId && e.status === 'active')
+    .forEach((emp) => {
+      empSelect.innerHTML += `<option value="${emp.id}">${emp.name}</option>`;
+    });
 }
 
-function renderAllocations() {
-  const tbody = document.getElementById('alloc-table-body');
+function renderAllocations(): void {
+  const tbody = getElOrNull('alloc-table-body');
   if (!tbody) return;
 
-  const search = document.getElementById('alloc-search').value.toLowerCase();
-  const showOverdue = document.getElementById('alloc-filter-overdue').checked;
+  const search = getEl<HTMLInputElement>('alloc-search').value.toLowerCase();
+  const showOverdue = getEl<HTMLInputElement>('alloc-filter-overdue').checked;
 
   tbody.innerHTML = '';
 
-  let filtered = state.allocations.filter(al => al.status !== 'returned');
+  let filtered = state.allocations.filter((al) => al.status !== 'returned');
 
   if (showOverdue) {
-    filtered = filtered.filter(al => al.status === 'overdue');
+    filtered = filtered.filter((al) => al.status === 'overdue');
   }
 
-  filtered = filtered.filter(al => {
-    const asset = state.assets.find(a => a.id === al.assetId);
-    const emp = state.employees.find(e => e.id === al.employeeId);
-    
+  filtered = filtered.filter((al) => {
+    const asset = state.assets.find((a) => a.id === al.assetId);
+    const emp = state.employees.find((e) => e.id === al.employeeId);
+
     const assetMatches = asset && asset.name.toLowerCase().includes(search);
     const empMatches = emp && emp.name.toLowerCase().includes(search);
     return assetMatches || empMatches;
@@ -1358,10 +1641,10 @@ function renderAllocations() {
     return;
   }
 
-  filtered.forEach(al => {
-    const asset = state.assets.find(a => a.id === al.assetId);
-    const emp = state.employees.find(e => e.id === al.employeeId);
-    const dept = state.departments.find(d => d.id === al.departmentId);
+  filtered.forEach((al) => {
+    const asset = state.assets.find((a) => a.id === al.assetId);
+    const emp = state.employees.find((e) => e.id === al.employeeId);
+    const dept = state.departments.find((d) => d.id === al.departmentId);
 
     const assetName = asset ? asset.name : 'Unknown Asset';
     const assetTag = asset ? asset.assetTag : '—';
@@ -1391,18 +1674,18 @@ function renderAllocations() {
   });
 }
 
-function renderTransferRequests() {
-  const container = document.getElementById('transfer-list-container');
+function renderTransferRequests(): void {
+  const container = getElOrNull('transfer-list-container');
   if (!container) return;
 
   container.innerHTML = '';
 
-  const pending = state.transfers.filter(t => t.status === 'pending');
-  const countBadge = document.getElementById('transfer-badge-count');
-  
+  const pending = state.transfers.filter((t) => t.status === 'pending');
+  const countBadge = getEl('transfer-badge-count');
+
   if (pending.length > 0) {
     countBadge.style.display = 'inline-flex';
-    countBadge.textContent = pending.length;
+    countBadge.textContent = String(pending.length);
   } else {
     countBadge.style.display = 'none';
   }
@@ -1418,10 +1701,10 @@ function renderTransferRequests() {
     return;
   }
 
-  pending.forEach(tr => {
-    const asset = state.assets.find(a => a.id === tr.assetId);
-    const requester = state.employees.find(e => e.id === tr.requesterEmployeeId);
-    const holder = state.employees.find(e => e.id === tr.currentHolderEmployeeId);
+  pending.forEach((tr) => {
+    const asset = state.assets.find((a) => a.id === tr.assetId);
+    const requester = state.employees.find((e) => e.id === tr.requesterEmployeeId);
+    const holder = state.employees.find((e) => e.id === tr.currentHolderEmployeeId);
 
     const assetName = asset ? asset.name : 'Asset';
     const requesterName = requester ? requester.name : 'User';
@@ -1429,12 +1712,14 @@ function renderTransferRequests() {
 
     // Show action triggers only for Admin, Asset Manager, or Department Heads
     const hasApprovalRights = ['admin', 'manager', 'head'].includes(state.activeRole);
-    const actionBtns = hasApprovalRights ? `
+    const actionBtns = hasApprovalRights
+      ? `
       <div style="display:flex; gap:0.5rem; margin-top:1rem;">
         <button class="btn btn-primary btn-sm" style="flex-grow:1;" onclick="processTransferApproval('${tr.id}', 'approved')">Approve</button>
         <button class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:var(--danger);" onclick="processTransferApproval('${tr.id}', 'rejected')">Reject</button>
       </div>
-    ` : `
+    `
+      : `
       <p style="font-size:0.7rem; color:var(--text-muted); margin-top:0.5rem; font-style:italic;">Awaiting Manager/Head signature</p>
     `;
 
@@ -1454,35 +1739,43 @@ function renderTransferRequests() {
 }
 
 // Conflict rules and submit allocation
-let activeConflictData = null;
+interface ConflictData {
+  assetId: string;
+  requesterEmployeeId: string;
+  targetDepartmentId: string;
+  currentHolderEmployeeId: string;
+  requestedDate: string;
+}
 
-function submitAllocateAsset() {
-  const assetId = document.getElementById('alloc-asset-select').value;
-  const deptId = document.getElementById('alloc-dept-select').value;
-  const employeeId = document.getElementById('alloc-emp-select').value;
-  const returnDate = document.getElementById('alloc-return-date').value;
+let activeConflictData: ConflictData | null = null;
 
-  const targetAsset = state.assets.find(a => a.id === assetId);
+function submitAllocateAsset(): void {
+  const assetId = getEl<HTMLSelectElement>('alloc-asset-select').value;
+  const deptId = getEl<HTMLSelectElement>('alloc-dept-select').value;
+  const employeeId = getEl<HTMLSelectElement>('alloc-emp-select').value;
+  const returnDate = getEl<HTMLInputElement>('alloc-return-date').value;
+
+  const targetAsset = state.assets.find((a) => a.id === assetId);
 
   // CONFLICT RULE: Check if already allocated
-  const existingAlloc = state.allocations.find(al => al.assetId === assetId && al.status !== 'returned');
+  const existingAlloc = state.allocations.find((al) => al.assetId === assetId && al.status !== 'returned');
 
   if (existingAlloc || (targetAsset && targetAsset.status === 'allocated')) {
     // Show conflict modal
-    const currentHolder = state.employees.find(e => e.id === (existingAlloc ? existingAlloc.employeeId : ''));
-    const currentDept = state.departments.find(d => d.id === (existingAlloc ? existingAlloc.departmentId : ''));
-    
+    const currentHolder = state.employees.find((e) => e.id === (existingAlloc ? existingAlloc.employeeId : ''));
+    const currentDept = state.departments.find((d) => d.id === (existingAlloc ? existingAlloc.departmentId : ''));
+
     activeConflictData = {
       assetId,
       requesterEmployeeId: employeeId,
       targetDepartmentId: deptId,
       currentHolderEmployeeId: existingAlloc ? existingAlloc.employeeId : 'e-2',
-      requestedDate: formatLogDate(new Date()).split(' ')[0]
+      requestedDate: formatLogDate(new Date()).split(' ')[0] ?? ''
     };
 
-    document.getElementById('conflict-asset-name').textContent = targetAsset ? targetAsset.name : 'Target Laptop';
-    document.getElementById('conflict-current-holder').textContent = currentHolder ? currentHolder.name : 'Sarah Connor';
-    document.getElementById('conflict-current-dept').textContent = currentDept ? currentDept.name : 'Corporate IT';
+    getEl('conflict-asset-name').textContent = targetAsset ? targetAsset.name : 'Target Laptop';
+    getEl('conflict-current-holder').textContent = currentHolder ? currentHolder.name : 'Sarah Connor';
+    getEl('conflict-current-dept').textContent = currentDept ? currentDept.name : 'Corporate IT';
 
     closeModal('modal-allocate-asset');
     openModal('modal-conflict-warning');
@@ -1493,24 +1786,22 @@ function submitAllocateAsset() {
   executeAssetAllocation(assetId, employeeId, deptId, returnDate);
 }
 
-function executeAssetAllocation(assetId, employeeId, departmentId, returnDate) {
-  const asset = state.assets.find(a => a.id === assetId);
-  const emp = state.employees.find(e => e.id === employeeId);
+function executeAssetAllocation(assetId: string, employeeId: string, departmentId: string, returnDate: string): void {
+  const asset = state.assets.find((a) => a.id === assetId);
+  const emp = state.employees.find((e) => e.id === employeeId);
 
-  const newAlloc = {
+  state.allocations.push({
     id: `al-${state.allocations.length + 1}`,
     assetId,
     employeeId,
     departmentId,
-    allocatedDate: formatLogDate(new Date()).split(' ')[0],
+    allocatedDate: formatLogDate(new Date()).split(' ')[0] ?? '',
     expectedReturnDate: returnDate || '',
     returnedDate: '',
     conditionCheckin: '',
     notes: 'Standard staff issue.',
     status: 'active'
-  };
-
-  state.allocations.push(newAlloc);
+  });
 
   // Update Asset Status to allocated
   if (asset) asset.status = 'allocated';
@@ -1530,74 +1821,71 @@ function executeAssetAllocation(assetId, employeeId, departmentId, returnDate) {
     id: `n-${state.notifications.length + 1}`,
     type: 'Asset Assigned',
     content: `New asset ${asset ? asset.name : 'Device'} has been successfully assigned to you.`,
-    date: formatLogDate(new Date()).split(' ')[0],
+    date: formatLogDate(new Date()).split(' ')[0] ?? '',
     isRead: false
   });
 
   saveState();
   closeModal('modal-allocate-asset');
   loadAllocationsPage();
-  showToast(`Asset allocated to ${emp ? emp.name : 'employee'} successfully!`, "success");
+  showToast(`Asset allocated to ${emp ? emp.name : 'employee'} successfully!`, 'success');
 }
 
-function executeTransferRequest() {
+function executeTransferRequest(): void {
   if (!activeConflictData) return;
 
-  const newTransfer = {
+  state.transfers.push({
     id: `tr-${state.transfers.length + 1}`,
     ...activeConflictData,
     status: 'pending'
-  };
-
-  state.transfers.push(newTransfer);
+  });
 
   state.auditLogs.unshift({
     id: `l-${state.auditLogs.length + 1}`,
     operator: state.currentUser ? state.currentUser.name : 'System User',
     action: 'TRANSFER',
     entityType: 'Asset',
-    details: `Initiated transfer request for asset ID ${newTransfer.assetId}`,
+    details: `Initiated transfer request for asset ID ${activeConflictData.assetId}`,
     timestamp: formatLogDate(new Date())
   });
 
   saveState();
   closeModal('modal-conflict-warning');
   loadAllocationsPage();
-  showToast("Transfer Request filed successfully! Awaiting Manager approval.", "success");
+  showToast('Transfer Request filed successfully! Awaiting Manager approval.', 'success');
   activeConflictData = null;
 }
 
-function processTransferApproval(transferId, status) {
-  const tr = state.transfers.find(t => t.id === transferId);
+function processTransferApproval(transferId: string, status: 'approved' | 'rejected'): void {
+  const tr = state.transfers.find((t) => t.id === transferId);
   if (!tr) return;
 
   tr.status = status;
 
   if (status === 'approved') {
     // 1. Close current active allocation for the asset
-    const activeAlloc = state.allocations.find(al => al.assetId === tr.assetId && al.status !== 'returned');
+    const activeAlloc = state.allocations.find((al) => al.assetId === tr.assetId && al.status !== 'returned');
     if (activeAlloc) {
       activeAlloc.status = 'returned';
-      activeAlloc.returnedDate = formatLogDate(new Date()).split(' ')[0];
+      activeAlloc.returnedDate = formatLogDate(new Date()).split(' ')[0] ?? '';
     }
 
     // 2. Open new allocation to requester
-    const newAlloc = {
+    state.allocations.push({
       id: `al-${state.allocations.length + 1}`,
       assetId: tr.assetId,
       employeeId: tr.requesterEmployeeId,
       departmentId: tr.targetDepartmentId,
-      allocatedDate: formatLogDate(new Date()).split(' ')[0],
+      allocatedDate: formatLogDate(new Date()).split(' ')[0] ?? '',
       expectedReturnDate: '',
       returnedDate: '',
       conditionCheckin: '',
       notes: 'Transfer routing.',
       status: 'active'
-    };
-    state.allocations.push(newAlloc);
+    });
 
     // Update asset
-    const asset = state.assets.find(a => a.id === tr.assetId);
+    const asset = state.assets.find((a) => a.id === tr.assetId);
     if (asset) asset.status = 'allocated';
 
     // Logs
@@ -1614,47 +1902,47 @@ function processTransferApproval(transferId, status) {
       id: `n-${state.notifications.length + 1}`,
       type: 'Transfer Approved',
       content: `Your transfer request for ${asset ? asset.name : 'device'} was approved.`,
-      date: formatLogDate(new Date()).split(' ')[0],
+      date: formatLogDate(new Date()).split(' ')[0] ?? '',
       isRead: false
     });
 
-    showToast("Transfer approved and asset re-allocated!", "success");
+    showToast('Transfer approved and asset re-allocated!', 'success');
   } else {
-    showToast("Transfer request rejected.", "warning");
+    showToast('Transfer request rejected.', 'warning');
   }
 
   saveState();
   loadAllocationsPage();
 }
 
-function openReturnModal(allocId) {
-  const al = state.allocations.find(a => a.id === allocId);
+function openReturnModal(allocId: string): void {
+  const al = state.allocations.find((a) => a.id === allocId);
   if (!al) return;
 
-  const asset = state.assets.find(a => a.id === al.assetId);
-  const emp = state.employees.find(e => e.id === al.employeeId);
+  const asset = state.assets.find((a) => a.id === al.assetId);
+  const emp = state.employees.find((e) => e.id === al.employeeId);
 
-  document.getElementById('return-asset-id').value = al.id;
-  document.getElementById('return-asset-label').textContent = asset ? `${asset.name} (${asset.assetTag})` : 'Asset';
-  document.getElementById('return-employee-label').textContent = emp ? emp.name : 'Staff';
+  getEl<HTMLInputElement>('return-asset-id').value = al.id;
+  getEl('return-asset-label').textContent = asset ? `${asset.name} (${asset.assetTag})` : 'Asset';
+  getEl('return-employee-label').textContent = emp ? emp.name : 'Staff';
 
   openModal('modal-return-form');
 }
 
-function submitReturnAsset() {
-  const allocId = document.getElementById('return-asset-id').value;
-  const condition = document.getElementById('return-condition').value;
-  const notes = document.getElementById('return-notes').value.trim();
+function submitReturnAsset(): void {
+  const allocId = getEl<HTMLInputElement>('return-asset-id').value;
+  const condition = getEl<HTMLSelectElement>('return-condition').value as AssetCondition;
+  const notes = getEl<HTMLTextAreaElement>('return-notes').value.trim();
 
-  const al = state.allocations.find(a => a.id === allocId);
+  const al = state.allocations.find((a) => a.id === allocId);
   if (al) {
     al.status = 'returned';
-    al.returnedDate = formatLogDate(new Date()).split(' ')[0];
+    al.returnedDate = formatLogDate(new Date()).split(' ')[0] ?? '';
     al.conditionCheckin = condition;
     al.notes += ` | Returned notes: ${notes}`;
 
     // Revert Asset status back to available
-    const asset = state.assets.find(a => a.id === al.assetId);
+    const asset = state.assets.find((a) => a.id === al.assetId);
     if (asset) {
       asset.status = 'available';
       asset.condition = condition; // Update physical condition
@@ -1672,19 +1960,18 @@ function submitReturnAsset() {
     saveState();
     closeModal('modal-return-form');
     loadAllocationsPage();
-    showToast("Asset returned and checked back in as Available!", "success");
+    showToast('Asset returned and checked back in as Available!', 'success');
   }
 }
 
-
 // ================= PAGE 6: RESOURCE BOOKING CONTROLLERS =================
-function switchBookingLayout(layout) {
+function switchBookingLayout(layout: 'month' | 'timeline'): void {
   state.bookingLayout = layout;
-  
-  const monthLayout = document.getElementById('booking-month-layout');
-  const timelineLayout = document.getElementById('booking-timeline-layout');
-  const monthBtn = document.getElementById('btn-booking-view-month');
-  const timelineBtn = document.getElementById('btn-booking-view-timeline');
+
+  const monthLayout = getEl('booking-month-layout');
+  const timelineLayout = getEl('booking-timeline-layout');
+  const monthBtn = getEl('btn-booking-view-month');
+  const timelineBtn = getEl('btn-booking-view-timeline');
 
   if (layout === 'month') {
     monthLayout.style.display = 'block';
@@ -1704,7 +1991,7 @@ function switchBookingLayout(layout) {
   loadBookingPage();
 }
 
-function adjustCalendarMonth(direction) {
+function adjustCalendarMonth(direction: number): void {
   let m = state.activeCalendarMonth + direction;
   let y = state.activeCalendarYear;
   if (m < 0) {
@@ -1722,18 +2009,20 @@ function adjustCalendarMonth(direction) {
 // Current chosen resource for booking rendering
 let selectedBookableResourceId = 'all';
 
-function loadBookingPage() {
+function loadBookingPage(): void {
   // Populate resource select choices
-  const bookSelect = document.getElementById('book-resource-select');
+  const bookSelect = getElOrNull<HTMLSelectElement>('book-resource-select');
   if (bookSelect) {
     bookSelect.innerHTML = '';
-    state.assets.filter(a => a.isBookable).forEach(r => {
-      bookSelect.innerHTML += `<option value="${r.id}">${r.name} (${r.location})</option>`;
-    });
+    state.assets
+      .filter((a) => a.isBookable)
+      .forEach((r) => {
+        bookSelect.innerHTML += `<option value="${r.id}">${r.name} (${r.location})</option>`;
+      });
   }
 
   // Populate Resource Switcher Tabs
-  const tabs = document.getElementById('booking-resource-tabs');
+  const tabs = getElOrNull('booking-resource-tabs');
   if (tabs) {
     tabs.innerHTML = `
       <div class="resource-card ${selectedBookableResourceId === 'all' ? 'active' : ''}" onclick="selectBookingResourceTab('all')">
@@ -1745,13 +2034,15 @@ function loadBookingPage() {
       </div>
     `;
 
-    state.assets.filter(a => a.isBookable).forEach(r => {
-      let icon = 'calendar';
-      const cat = state.categories.find(c => c.id === r.categoryId);
-      if (cat && cat.icon === 'car') icon = 'car';
-      if (cat && cat.icon === 'projector') icon = 'projector';
+    state.assets
+      .filter((a) => a.isBookable)
+      .forEach((r) => {
+        let icon = 'calendar';
+        const cat = state.categories.find((c) => c.id === r.categoryId);
+        if (cat && cat.icon === 'car') icon = 'car';
+        if (cat && cat.icon === 'projector') icon = 'projector';
 
-      tabs.innerHTML += `
+        tabs.innerHTML += `
         <div class="resource-card ${selectedBookableResourceId === r.id ? 'active' : ''}" onclick="selectBookingResourceTab('${r.id}')">
           <div class="resource-icon"><i data-lucide="${icon}"></i></div>
           <div class="resource-info">
@@ -1760,13 +2051,16 @@ function loadBookingPage() {
           </div>
         </div>
       `;
-    });
+      });
     lucide.createIcons();
   }
 
   // Header month-year display
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  document.getElementById('calendar-month-year').textContent = `${months[state.activeCalendarMonth]} ${state.activeCalendarYear}`;
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  getEl('calendar-month-year').textContent = `${months[state.activeCalendarMonth] ?? ''} ${state.activeCalendarYear}`;
 
   if (state.bookingLayout === 'month') {
     renderCalendarGrid();
@@ -1777,13 +2071,13 @@ function loadBookingPage() {
   renderUpcomingBookingsWidget();
 }
 
-function selectBookingResourceTab(resourceId) {
+function selectBookingResourceTab(resourceId: string): void {
   selectedBookableResourceId = resourceId;
   loadBookingPage();
 }
 
-function renderCalendarGrid() {
-  const container = document.getElementById('calendar-day-cells');
+function renderCalendarGrid(): void {
+  const container = getElOrNull('calendar-day-cells');
   if (!container) return;
 
   container.innerHTML = '';
@@ -1812,21 +2106,21 @@ function renderCalendarGrid() {
     const cellDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
     // Filter bookings on this specific day
-    const dayBookings = state.bookings.filter(b => {
+    const dayBookings = state.bookings.filter((b) => {
       const isDate = b.bookDate === cellDateStr;
       const isRes = selectedBookableResourceId === 'all' || b.resourceId === selectedBookableResourceId;
       return isDate && isRes;
     });
 
     let bookingHtml = '';
-    dayBookings.forEach(b => {
-      const resource = state.assets.find(a => a.id === b.resourceId);
+    dayBookings.forEach((b) => {
+      const resource = state.assets.find((a) => a.id === b.resourceId);
       const name = resource ? resource.name : 'Space';
       let statusClass = 'upcoming';
       if (b.status === 'ongoing') statusClass = 'ongoing';
       if (b.status === 'completed') statusClass = 'completed';
       if (b.status === 'cancelled') statusClass = 'cancelled';
-      
+
       bookingHtml += `
         <div class="calendar-event ${statusClass}" title="${name} @ ${b.startTime}" onclick="openBookingInspector('${b.id}')">
           ${b.startTime} ${name}
@@ -1845,15 +2139,16 @@ function renderCalendarGrid() {
   }
 }
 
-function renderTimelineGrid() {
-  const container = document.getElementById('timeline-slots-container');
+function renderTimelineGrid(): void {
+  const container = getElOrNull('timeline-slots-container');
   if (!container) return;
 
   container.innerHTML = '';
 
-  const resources = selectedBookableResourceId === 'all' ? 
-                    state.assets.filter(a => a.isBookable) : 
-                    state.assets.filter(a => a.id === selectedBookableResourceId);
+  const resources =
+    selectedBookableResourceId === 'all'
+      ? state.assets.filter((a) => a.isBookable)
+      : state.assets.filter((a) => a.id === selectedBookableResourceId);
 
   if (resources.length === 0) {
     container.innerHTML = `<div class="empty-state"><h3>No resources selected</h3></div>`;
@@ -1861,25 +2156,25 @@ function renderTimelineGrid() {
   }
 
   // Render hourly schedule block for today (July 12)
-  resources.forEach(res => {
-    const resBookings = state.bookings.filter(b => b.resourceId === res.id && b.bookDate === '2026-07-12');
-    
+  resources.forEach((res) => {
+    const resBookings = state.bookings.filter((b) => b.resourceId === res.id && b.bookDate === '2026-07-12');
+
     let hoursHtml = '';
     for (let h = 8; h <= 18; h++) {
       const timeStr = `${String(h).padStart(2, '0')}:00`;
-      
+
       // Check if slot overlaps with any active booking
-      const activeBooking = resBookings.find(b => {
-        const startH = parseInt(b.startTime.split(':')[0]);
+      const activeBooking = resBookings.find((b) => {
+        const startH = parseInt(b.startTime.split(':')[0] ?? '0', 10);
         const dur = parseFloat(b.durationHours);
-        return h >= startH && h < (startH + dur);
+        return h >= startH && h < startH + dur;
       });
 
       let slotStyle = '';
       let slotLabel = 'Free';
       if (activeBooking) {
         slotStyle = 'background-color: var(--primary-light); color:var(--primary); font-weight:600;';
-        const emp = state.employees.find(e => e.id === activeBooking.employeeId);
+        const emp = state.employees.find((e) => e.id === activeBooking.employeeId);
         slotLabel = emp ? emp.name : 'Reserved';
       }
 
@@ -1904,22 +2199,22 @@ function renderTimelineGrid() {
   });
 }
 
-function renderUpcomingBookingsWidget() {
-  const container = document.getElementById('booking-upcoming-list');
+function renderUpcomingBookingsWidget(): void {
+  const container = getElOrNull('booking-upcoming-list');
   if (!container) return;
 
   container.innerHTML = '';
 
-  const list = state.bookings.filter(b => b.status === 'upcoming' || b.status === 'ongoing');
-  
+  const list = state.bookings.filter((b) => b.status === 'upcoming' || b.status === 'ongoing');
+
   if (list.length === 0) {
     container.innerHTML = `<div style="text-align:center; padding:2rem 0; color:var(--text-muted); font-size:0.8125rem;">No upcoming space reservations.</div>`;
     return;
   }
 
-  list.forEach(b => {
-    const res = state.assets.find(a => a.id === b.resourceId);
-    const emp = state.employees.find(e => e.id === b.employeeId);
+  list.forEach((b) => {
+    const res = state.assets.find((a) => a.id === b.resourceId);
+    const emp = state.employees.find((e) => e.id === b.employeeId);
 
     container.innerHTML += `
       <div class="card" style="padding:1rem;">
@@ -1939,43 +2234,45 @@ function renderUpcomingBookingsWidget() {
   });
 }
 
-function submitBookResource() {
-  const resourceId = document.getElementById('book-resource-select').value;
-  const date = document.getElementById('book-date').value;
-  const startTime = document.getElementById('book-time').value;
-  const duration = parseFloat(document.getElementById('book-duration').value);
+function submitBookResource(): void {
+  const resourceId = getEl<HTMLSelectElement>('book-resource-select').value;
+  const date = getEl<HTMLInputElement>('book-date').value;
+  const startTime = getEl<HTMLInputElement>('book-time').value;
+  const duration = parseFloat(getEl<HTMLInputElement>('book-duration').value);
 
   // STRICT OVERLAP VALIDATION: Check collisions
-  const resourceBookings = state.bookings.filter(b => b.resourceId === resourceId && b.bookDate === date && b.status !== 'cancelled');
-  
-  const newStartHour = parseInt(startTime.split(':')[0]);
-  const newStartMin = parseInt(startTime.split(':')[1]);
-  const newStartVal = newStartHour + (newStartMin / 60);
+  const resourceBookings = state.bookings.filter(
+    (b) => b.resourceId === resourceId && b.bookDate === date && b.status !== 'cancelled'
+  );
+
+  const newStartHour = parseInt(startTime.split(':')[0] ?? '0', 10);
+  const newStartMin = parseInt(startTime.split(':')[1] ?? '0', 10);
+  const newStartVal = newStartHour + newStartMin / 60;
   const newEndVal = newStartVal + duration;
 
   let collision = false;
   let collisionEmpName = 'Staff';
 
-  resourceBookings.forEach(b => {
-    const existingStartHour = parseInt(b.startTime.split(':')[0]);
-    const existingStartMin = parseInt(b.startTime.split(':')[1]);
-    const existingStartVal = existingStartHour + (existingStartMin / 60);
+  resourceBookings.forEach((b) => {
+    const existingStartHour = parseInt(b.startTime.split(':')[0] ?? '0', 10);
+    const existingStartMin = parseInt(b.startTime.split(':')[1] ?? '0', 10);
+    const existingStartVal = existingStartHour + existingStartMin / 60;
     const existingEndVal = existingStartVal + parseFloat(b.durationHours);
 
     // Overlap condition
     if (newStartVal < existingEndVal && newEndVal > existingStartVal) {
       collision = true;
-      const emp = state.employees.find(e => e.id === b.employeeId);
+      const emp = state.employees.find((e) => e.id === b.employeeId);
       collisionEmpName = emp ? emp.name : 'Staff';
     }
   });
 
   if (collision && state.strictBooking) {
-    showToast(`Booking Collision! This slot is already booked by ${collisionEmpName}.`, "danger");
+    showToast(`Booking Collision! This slot is already booked by ${collisionEmpName}.`, 'danger');
     return;
   }
 
-  const newBooking = {
+  state.bookings.push({
     id: `b-${state.bookings.length + 1}`,
     resourceId,
     employeeId: state.currentUser ? state.currentUser.id : 'e-1',
@@ -1983,9 +2280,7 @@ function submitBookResource() {
     startTime,
     durationHours: String(duration),
     status: 'upcoming'
-  };
-
-  state.bookings.push(newBooking);
+  });
 
   // Add Log
   state.auditLogs.unshift({
@@ -2002,21 +2297,21 @@ function submitBookResource() {
     id: `n-${state.notifications.length + 1}`,
     type: 'Booking Confirmed',
     content: `Your reservation for resource is confirmed for ${date} at ${startTime}.`,
-    date: formatLogDate(new Date()).split(' ')[0],
+    date: formatLogDate(new Date()).split(' ')[0] ?? '',
     isRead: false
   });
 
   saveState();
   closeModal('modal-book-resource');
   loadBookingPage();
-  showToast("Resource booked successfully!", "success");
+  showToast('Resource booked successfully!', 'success');
 }
 
-function cancelBooking(bookingId) {
-  const b = state.bookings.find(x => x.id === bookingId);
+function cancelBooking(bookingId: string): void {
+  const b = state.bookings.find((x) => x.id === bookingId);
   if (b) {
     b.status = 'cancelled';
-    
+
     state.auditLogs.unshift({
       id: `l-${state.auditLogs.length + 1}`,
       operator: state.currentUser ? state.currentUser.name : 'System User',
@@ -2028,32 +2323,33 @@ function cancelBooking(bookingId) {
 
     saveState();
     loadBookingPage();
-    showToast("Reservation successfully cancelled.", "warning");
+    showToast('Reservation successfully cancelled.', 'warning');
   }
 }
 
-function openBookingInspector(bookingId) {
-  const b = state.bookings.find(x => x.id === bookingId);
+function openBookingInspector(bookingId: string): void {
+  const b = state.bookings.find((x) => x.id === bookingId);
   if (!b) return;
 
-  const res = state.assets.find(a => a.id === b.resourceId);
-  const emp = state.employees.find(e => e.id === b.employeeId);
+  const res = state.assets.find((a) => a.id === b.resourceId);
+  const emp = state.employees.find((e) => e.id === b.employeeId);
 
   const resName = res ? res.name : 'Resource';
   const empName = emp ? emp.name : 'Staff';
 
-  alert(`Reservation Details:\nResource: ${resName}\nReserved By: ${empName}\nDate: ${b.bookDate}\nTime: ${b.startTime}\nDuration: ${b.durationHours} Hours\nStatus: ${b.status}`);
+  alert(
+    `Reservation Details:\nResource: ${resName}\nReserved By: ${empName}\nDate: ${b.bookDate}\nTime: ${b.startTime}\nDuration: ${b.durationHours} Hours\nStatus: ${b.status}`
+  );
 }
 
-
 // ================= PAGE 7: MAINTENANCE CONTROLLERS =================
-function switchMaintView(view) {
+function switchMaintView(view: 'kanban' | 'table'): void {
   state.maintView = view;
-  
-  const kanban = document.getElementById('maint-kanban-board');
-  const table = document.getElementById('maint-table-container');
-  const kanbanBtn = document.getElementById('btn-maint-view-kanban');
-  const tableBtn = document.getElementById('btn-maint-view-table');
+
+  const kanban = getEl('maint-kanban-board');
+  const table = getEl('maint-table-container');
+  const kanbanBtn = getEl('btn-maint-view-kanban');
+  const tableBtn = getEl('btn-maint-view-table');
 
   if (view === 'kanban') {
     kanban.style.display = 'flex';
@@ -2071,22 +2367,22 @@ function switchMaintView(view) {
   renderMaintenance();
 }
 
-function loadMaintenancePage() {
+function loadMaintenancePage(): void {
   // Populate asset selects in form
-  const select = document.getElementById('maint-asset-select');
+  const select = getElOrNull<HTMLSelectElement>('maint-asset-select');
   if (select) {
     select.innerHTML = '';
-    state.assets.forEach(a => {
+    state.assets.forEach((a) => {
       select.innerHTML += `<option value="${a.id}">${a.name} (${a.assetTag})</option>`;
     });
   }
 
   // Populate technician dropdown lists
-  const techSelect = document.getElementById('assign-tech-select');
+  const techSelect = getElOrNull<HTMLSelectElement>('assign-tech-select');
   if (techSelect) {
     techSelect.innerHTML = '<option value="">Select Technician...</option>';
     // Filter IT / Ops managers
-    state.employees.forEach(emp => {
+    state.employees.forEach((emp) => {
       techSelect.innerHTML += `<option value="${emp.name}">${emp.name} (${emp.role})</option>`;
     });
   }
@@ -2094,19 +2390,20 @@ function loadMaintenancePage() {
   renderMaintenance();
 }
 
-function renderMaintenance() {
-  const search = document.getElementById('maint-search').value.toLowerCase();
-  const priorityFilter = document.getElementById('maint-filter-priority').value;
+function renderMaintenance(): void {
+  const search = getEl<HTMLInputElement>('maint-search').value.toLowerCase();
+  const priorityFilter = getEl<HTMLSelectElement>('maint-filter-priority').value;
 
   // Filter tasks
-  const filtered = state.maintenance.filter(ticket => {
-    const asset = state.assets.find(a => a.id === ticket.assetId);
-    
-    const matchesSearch = ticket.issueDescription.toLowerCase().includes(search) || 
-                          (asset && asset.name.toLowerCase().includes(search)) ||
-                          (asset && asset.assetTag.toLowerCase().includes(search));
+  const filtered = state.maintenance.filter((ticket) => {
+    const asset = state.assets.find((a) => a.id === ticket.assetId);
+
+    const matchesSearch =
+      ticket.issueDescription.toLowerCase().includes(search) ||
+      (asset && asset.name.toLowerCase().includes(search)) ||
+      (asset && asset.assetTag.toLowerCase().includes(search));
     const matchesPriority = !priorityFilter || ticket.priority === priorityFilter;
-    
+
     return matchesSearch && matchesPriority;
   });
 
@@ -2117,24 +2414,34 @@ function renderMaintenance() {
   }
 }
 
-function renderMaintenanceKanban(tickets) {
+function renderMaintenanceKanban(tickets: typeof state.maintenance): void {
   // Columns identifiers
-  const columns = {
-    pending: document.getElementById('col-maint-pending'),
-    approved: document.getElementById('col-maint-approved'),
-    assigned: document.getElementById('col-maint-assigned'),
-    progress: document.getElementById('col-maint-progress'),
-    resolved: document.getElementById('col-maint-resolved')
+  const columns: Record<MaintenanceStatus, HTMLElement | null> = {
+    pending: getElOrNull('col-maint-pending'),
+    approved: getElOrNull('col-maint-approved'),
+    assigned: getElOrNull('col-maint-assigned'),
+    progress: getElOrNull('col-maint-progress'),
+    resolved: getElOrNull('col-maint-resolved'),
+    rejected: null
   };
 
   // Clear all columns
-  Object.values(columns).forEach(col => { if(col) col.innerHTML = ''; });
+  Object.values(columns).forEach((col) => {
+    if (col) col.innerHTML = '';
+  });
 
   // Counts
-  const counts = { pending: 0, approved: 0, assigned: 0, progress: 0, resolved: 0 };
+  const counts: Record<MaintenanceStatus, number> = {
+    pending: 0,
+    approved: 0,
+    assigned: 0,
+    progress: 0,
+    resolved: 0,
+    rejected: 0
+  };
 
-  tickets.forEach(t => {
-    const asset = state.assets.find(a => a.id === t.assetId);
+  tickets.forEach((t) => {
+    const asset = state.assets.find((a) => a.id === t.assetId);
     const assetName = asset ? asset.name : 'Unknown Device';
     const assetTag = asset ? asset.assetTag : '—';
     const techText = t.technicianName ? `Tech: ${t.technicianName}` : 'No Tech Assigned';
@@ -2146,7 +2453,7 @@ function renderMaintenanceKanban(tickets) {
       // Role-based actions on ticket cards
       let actionButtons = '';
       const isManager = ['admin', 'manager'].includes(state.activeRole);
-      
+
       if (t.status === 'pending' && isManager) {
         actionButtons = `<button class="btn btn-primary btn-sm" style="width:100%; margin-top:0.5rem;" onclick="approveMaintenanceTicket('${t.id}')">Approve Request</button>`;
       } else if (t.status === 'approved' && isManager) {
@@ -2176,15 +2483,15 @@ function renderMaintenanceKanban(tickets) {
   });
 
   // Render Column Header Counts
-  document.getElementById('count-maint-pending').textContent = counts.pending;
-  document.getElementById('count-maint-approved').textContent = counts.approved;
-  document.getElementById('count-maint-assigned').textContent = counts.assigned;
-  document.getElementById('count-maint-progress').textContent = counts.progress;
-  document.getElementById('count-maint-resolved').textContent = counts.resolved;
+  getEl('count-maint-pending').textContent = String(counts.pending);
+  getEl('count-maint-approved').textContent = String(counts.approved);
+  getEl('count-maint-assigned').textContent = String(counts.assigned);
+  getEl('count-maint-progress').textContent = String(counts.progress);
+  getEl('count-maint-resolved').textContent = String(counts.resolved);
 }
 
-function renderMaintenanceTable(tickets) {
-  const tbody = document.getElementById('maint-table-body');
+function renderMaintenanceTable(tickets: typeof state.maintenance): void {
+  const tbody = getElOrNull('maint-table-body');
   if (!tbody) return;
 
   tbody.innerHTML = '';
@@ -2195,11 +2502,11 @@ function renderMaintenanceTable(tickets) {
   }
 
   tickets.forEach((t, i) => {
-    const asset = state.assets.find(a => a.id === t.assetId);
-    
+    const asset = state.assets.find((a) => a.id === t.assetId);
+
     tbody.innerHTML += `
       <tr>
-        <td style="font-weight:600;">TKT-00${i+1}</td>
+        <td style="font-weight:600;">TKT-00${i + 1}</td>
         <td>
           <div style="font-weight:600;">${asset ? asset.name : 'Asset'}</div>
           <span style="font-size:0.75rem; font-family:monospace; color:var(--text-muted);">${asset ? asset.assetTag : ''}</span>
@@ -2217,25 +2524,23 @@ function renderMaintenanceTable(tickets) {
   });
 }
 
-function submitMaintenanceRequest() {
-  const assetId = document.getElementById('maint-asset-select').value;
-  const priority = document.getElementById('maint-priority').value;
-  const desc = document.getElementById('maint-desc').value.trim();
+function submitMaintenanceRequest(): void {
+  const assetId = getEl<HTMLSelectElement>('maint-asset-select').value;
+  const priority = getEl<HTMLSelectElement>('maint-priority').value as 'low' | 'medium' | 'high' | 'critical';
+  const desc = getEl<HTMLTextAreaElement>('maint-desc').value.trim();
 
-  const newTicket = {
+  state.maintenance.push({
     id: `m-${state.maintenance.length + 1}`,
     assetId,
     priority,
     issueDescription: desc,
     raisedEmployeeId: state.currentUser ? state.currentUser.id : 'e-1',
-    raisedDate: formatLogDate(new Date()).split(' ')[0],
+    raisedDate: formatLogDate(new Date()).split(' ')[0] ?? '',
     status: 'pending',
     technicianName: '',
     resolutionDeadline: '',
     resolvedDate: ''
-  };
-
-  state.maintenance.push(newTicket);
+  });
 
   state.auditLogs.unshift({
     id: `l-${state.auditLogs.length + 1}`,
@@ -2249,16 +2554,16 @@ function submitMaintenanceRequest() {
   saveState();
   closeModal('modal-maintenance-request');
   loadMaintenancePage();
-  showToast("Maintenance ticket submitted successfully for approval!", "success");
+  showToast('Maintenance ticket submitted successfully for approval!', 'success');
 }
 
-function approveMaintenanceTicket(ticketId) {
-  const t = state.maintenance.find(x => x.id === ticketId);
+function approveMaintenanceTicket(ticketId: string): void {
+  const t = state.maintenance.find((x) => x.id === ticketId);
   if (t) {
     t.status = 'approved';
-    
+
     // TRANSITION RULE: Update target asset status to Under Maintenance
-    const asset = state.assets.find(a => a.id === t.assetId);
+    const asset = state.assets.find((a) => a.id === t.assetId);
     if (asset) asset.status = 'maintenance';
 
     // Notify requester
@@ -2266,24 +2571,24 @@ function approveMaintenanceTicket(ticketId) {
       id: `n-${state.notifications.length + 1}`,
       type: 'Maintenance Approved',
       content: `Your maintenance request for asset ${asset ? asset.name : 'device'} has been approved. Status flipped to Under Maintenance.`,
-      date: formatLogDate(new Date()).split(' ')[0],
+      date: formatLogDate(new Date()).split(' ')[0] ?? '',
       isRead: false
     });
 
     saveState();
     loadMaintenancePage();
-    showToast("Maintenance request approved. Asset status set to 'Under Maintenance'.", "success");
+    showToast("Maintenance request approved. Asset status set to 'Under Maintenance'.", 'success');
   }
 }
 
-function openAssignTechModal(ticketId) {
-  const t = state.maintenance.find(x => x.id === ticketId);
+function openAssignTechModal(ticketId: string): void {
+  const t = state.maintenance.find((x) => x.id === ticketId);
   if (!t) return;
 
-  const asset = state.assets.find(a => a.id === t.assetId);
+  const asset = state.assets.find((a) => a.id === t.assetId);
 
-  document.getElementById('assign-maint-id').value = t.id;
-  document.getElementById('assign-tech-asset-details').innerHTML = `
+  getEl<HTMLInputElement>('assign-maint-id').value = t.id;
+  getEl('assign-tech-asset-details').innerHTML = `
     <strong>Target Asset:</strong> ${asset ? asset.name : 'Device'}<br>
     <strong>Priority:</strong> ${t.priority.toUpperCase()}<br>
     <strong>Description:</strong> ${t.issueDescription}
@@ -2292,12 +2597,12 @@ function openAssignTechModal(ticketId) {
   openModal('modal-assign-tech');
 }
 
-function submitAssignTechnician() {
-  const ticketId = document.getElementById('assign-maint-id').value;
-  const tech = document.getElementById('assign-tech-select').value;
-  const deadline = document.getElementById('assign-tech-deadline').value;
+function submitAssignTechnician(): void {
+  const ticketId = getEl<HTMLInputElement>('assign-maint-id').value;
+  const tech = getEl<HTMLSelectElement>('assign-tech-select').value;
+  const deadline = getEl<HTMLInputElement>('assign-tech-deadline').value;
 
-  const t = state.maintenance.find(x => x.id === ticketId);
+  const t = state.maintenance.find((x) => x.id === ticketId);
   if (t) {
     t.status = 'assigned';
     t.technicianName = tech;
@@ -2306,59 +2611,60 @@ function submitAssignTechnician() {
     saveState();
     closeModal('modal-assign-tech');
     loadMaintenancePage();
-    showToast(`Technician ${tech} assigned to ticket successfully!`, "success");
+    showToast(`Technician ${tech} assigned to ticket successfully!`, 'success');
   }
 }
 
-function advanceMaintenanceStatus(ticketId, nextStatus) {
-  const t = state.maintenance.find(x => x.id === ticketId);
+function advanceMaintenanceStatus(ticketId: string, nextStatus: MaintenanceStatus): void {
+  const t = state.maintenance.find((x) => x.id === ticketId);
   if (!t) return;
 
   t.status = nextStatus;
 
   if (nextStatus === 'resolved') {
-    t.resolvedDate = formatLogDate(new Date()).split(' ')[0];
-    
+    t.resolvedDate = formatLogDate(new Date()).split(' ')[0] ?? '';
+
     // TRANSITION RULE: Revert asset status back to available
-    const asset = state.assets.find(a => a.id === t.assetId);
+    const asset = state.assets.find((a) => a.id === t.assetId);
     if (asset) asset.status = 'available';
 
-    showToast("Maintenance resolved! Asset status reverted back to 'Available'.", "success");
+    showToast("Maintenance resolved! Asset status reverted back to 'Available'.", 'success');
   } else {
-    showToast(`Ticket status advanced to: ${nextStatus}`, "primary");
+    showToast(`Ticket status advanced to: ${nextStatus}`, 'primary');
   }
 
   saveState();
   loadMaintenancePage();
 }
 
-function showMaintDetailsSummary(ticketId) {
-  const t = state.maintenance.find(x => x.id === ticketId);
+function showMaintDetailsSummary(ticketId: string): void {
+  const t = state.maintenance.find((x) => x.id === ticketId);
   if (!t) return;
-  const asset = state.assets.find(a => a.id === t.assetId);
-  
-  alert(`Ticket Summary:\nAsset: ${asset ? asset.name : 'device'}\nPriority: ${t.priority}\nIssue: ${t.issueDescription}\nAssigned Tech: ${t.technicianName || 'None'}\nDeadline: ${t.resolutionDeadline || '—'}\nResolution State: ${t.status}`);
+  const asset = state.assets.find((a) => a.id === t.assetId);
+
+  alert(
+    `Ticket Summary:\nAsset: ${asset ? asset.name : 'device'}\nPriority: ${t.priority}\nIssue: ${t.issueDescription}\nAssigned Tech: ${t.technicianName || 'None'}\nDeadline: ${t.resolutionDeadline || '—'}\nResolution State: ${t.status}`
+  );
 }
 
-
 // ================= PAGE 8: AUDIT CONTROLLERS =================
-function loadAuditPage() {
+function loadAuditPage(): void {
   renderAuditCycles();
 
   // Seed scope departments
-  const scopeSelect = document.getElementById('audit-scope-dept');
+  const scopeSelect = getElOrNull<HTMLSelectElement>('audit-scope-dept');
   if (scopeSelect) {
     scopeSelect.innerHTML = '';
-    state.departments.forEach(dept => {
+    state.departments.forEach((dept) => {
       scopeSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
     });
   }
 
   // Seed auditors select
-  const auditorSelect = document.getElementById('audit-auditor');
+  const auditorSelect = getElOrNull<HTMLSelectElement>('audit-auditor');
   if (auditorSelect) {
     auditorSelect.innerHTML = '';
-    state.employees.forEach(emp => {
+    state.employees.forEach((emp) => {
       auditorSelect.innerHTML += `<option value="${emp.id}">${emp.name} (${formatRoleName(emp.role)})</option>`;
     });
   }
@@ -2369,16 +2675,16 @@ function loadAuditPage() {
   }
 }
 
-function renderAuditCycles() {
-  const tbody = document.getElementById('audit-cycles-table-body');
+function renderAuditCycles(): void {
+  const tbody = getElOrNull('audit-cycles-table-body');
   if (!tbody) return;
 
   tbody.innerHTML = '';
 
-  state.audits.forEach(aud => {
-    const dept = state.departments.find(d => d.id === aud.scopeDeptId);
-    const auditor = state.employees.find(e => e.id === aud.assignedAuditorId);
-    
+  state.audits.forEach((aud) => {
+    const dept = state.departments.find((d) => d.id === aud.scopeDeptId);
+    const auditor = state.employees.find((e) => e.id === aud.assignedAuditorId);
+
     const deptName = dept ? dept.name : 'All';
     const auditorName = auditor ? auditor.name : 'Sarah Connor';
 
@@ -2401,36 +2707,30 @@ function renderAuditCycles() {
   });
 }
 
-function loadAuditChecklist(cycleId) {
+function loadAuditChecklist(cycleId: string): void {
   state.activeAuditCycleId = cycleId;
 
-  // Toggle highlight in list table
-  loadAuditPage; // sync highlights
-  
-  const aud = state.audits.find(a => a.id === cycleId);
+  const aud = state.audits.find((a) => a.id === cycleId);
   if (!aud) return;
 
-  const dept = state.departments.find(d => d.id === aud.scopeDeptId);
-  const auditor = state.employees.find(e => e.id === aud.assignedAuditorId);
-  
-  document.getElementById('audit-active-title').textContent = aud.title;
-  document.getElementById('audit-active-scope').textContent = dept ? dept.name : 'Finance';
-  document.getElementById('audit-active-auditor').textContent = auditor ? auditor.name : 'Sarah Connor';
+  const dept = state.departments.find((d) => d.id === aud.scopeDeptId);
+  const auditor = state.employees.find((e) => e.id === aud.assignedAuditorId);
+
+  getEl('audit-active-title').textContent = aud.title;
+  getEl('audit-active-scope').textContent = dept ? dept.name : 'Finance';
+  getEl('audit-active-auditor').textContent = auditor ? auditor.name : 'Sarah Connor';
 
   // Toggle placeholder view
-  document.getElementById('audit-checklist-placeholder').style.display = 'none';
-  document.getElementById('audit-checklist-active').style.display = 'block';
+  getEl('audit-checklist-placeholder').style.display = 'none';
+  getEl('audit-checklist-active').style.display = 'block';
 
   // Populate checklist table of assets in the department scope
-  const checklistBody = document.getElementById('audit-verification-tbody');
+  const checklistBody = getEl('audit-verification-tbody');
   checklistBody.innerHTML = '';
 
-  const scopeAssets = state.assets.filter(a => a.categoryId !== ''); // load all assets for simulation or filter by department if allocation department matches
-  
-  // To keep it simple, load assets whose current allocated department matches the audit scope
-  const targetAssets = state.assets.filter(asset => {
-    // Check active allocation
-    const alloc = state.allocations.find(al => al.assetId === asset.id && al.status !== 'returned');
+  // Load assets whose current allocated department matches the audit scope
+  const targetAssets = state.assets.filter((asset) => {
+    const alloc = state.allocations.find((al) => al.assetId === asset.id && al.status !== 'returned');
     return alloc && alloc.departmentId === aud.scopeDeptId;
   });
 
@@ -2442,7 +2742,7 @@ function loadAuditChecklist(cycleId) {
   // Disable verify buttons if cycle is closed
   const isClosed = aud.status === 'closed';
 
-  targetAssets.forEach(asset => {
+  targetAssets.forEach((asset) => {
     // Check verify state from cycle data
     const isVerified = aud.verifiedAssetIds.includes(asset.id);
     const isMissing = aud.missingAssetIds.includes(asset.id);
@@ -2477,12 +2777,12 @@ function loadAuditChecklist(cycleId) {
   // Calculate discrepancy values and update report card
   const missingCount = aud.missingAssetIds.length;
   const damagedCount = aud.damagedAssetIds.length;
-  
+
   const text = `Currently: ${missingCount} Missing and ${damagedCount} Damaged assets flagged. Closing this cycle will auto-transition missing items to 'Lost'.`;
-  document.getElementById('audit-discrepancy-text').textContent = text;
+  getEl('audit-discrepancy-text').textContent = text;
 
   // Toggle Close lock btn visibility depending on role & status
-  const lockBtn = document.getElementById('btn-close-audit');
+  const lockBtn = getEl('btn-close-audit');
   if (isClosed) {
     lockBtn.style.display = 'none';
   } else {
@@ -2490,29 +2790,29 @@ function loadAuditChecklist(cycleId) {
   }
 }
 
-function markAuditAsset(cycleId, assetId, verifyState) {
-  const aud = state.audits.find(a => a.id === cycleId);
+function markAuditAsset(cycleId: string, assetId: string, verifyState: 'verified' | 'missing' | 'damaged'): void {
+  const aud = state.audits.find((a) => a.id === cycleId);
   if (!aud || aud.status === 'closed') return;
 
   // Clear existing logs in other arrays
-  aud.verifiedAssetIds = aud.verifiedAssetIds.filter(id => id !== assetId);
-  aud.missingAssetIds = aud.missingAssetIds.filter(id => id !== assetId);
-  aud.damagedAssetIds = aud.damagedAssetIds.filter(id => id !== assetId);
+  aud.verifiedAssetIds = aud.verifiedAssetIds.filter((id) => id !== assetId);
+  aud.missingAssetIds = aud.missingAssetIds.filter((id) => id !== assetId);
+  aud.damagedAssetIds = aud.damagedAssetIds.filter((id) => id !== assetId);
 
   if (verifyState === 'verified') {
     aud.verifiedAssetIds.push(assetId);
-    showToast("Asset marked as verified", "success");
+    showToast('Asset marked as verified', 'success');
   } else if (verifyState === 'missing') {
     aud.missingAssetIds.push(assetId);
-    showToast("Discrepancy registered: Asset is Missing!", "danger");
+    showToast('Discrepancy registered: Asset is Missing!', 'danger');
   } else if (verifyState === 'damaged') {
     aud.damagedAssetIds.push(assetId);
-    showToast("Discrepancy registered: Asset is Damaged!", "warning");
+    showToast('Discrepancy registered: Asset is Damaged!', 'warning');
   }
 
   // Recalculate progress percent
-  const targetAssets = state.assets.filter(asset => {
-    const alloc = state.allocations.find(al => al.assetId === asset.id && al.status !== 'returned');
+  const targetAssets = state.assets.filter((asset) => {
+    const alloc = state.allocations.find((al) => al.assetId === asset.id && al.status !== 'returned');
     return alloc && alloc.departmentId === aud.scopeDeptId;
   });
   const total = targetAssets.length;
@@ -2524,22 +2824,26 @@ function markAuditAsset(cycleId, assetId, verifyState) {
   renderAuditCycles();
 }
 
-function closeAuditCycleTrigger() {
-  const aud = state.audits.find(a => a.id === state.activeAuditCycleId);
+function closeAuditCycleTrigger(): void {
+  const aud = state.audits.find((a) => a.id === state.activeAuditCycleId);
   if (!aud || aud.status === 'closed') return;
 
-  if (confirm("Are you sure you want to close and lock this audit cycle? A discrepancy report will be generated and missing assets automatically updated to 'Lost' status.")) {
+  if (
+    confirm(
+      "Are you sure you want to close and lock this audit cycle? A discrepancy report will be generated and missing assets automatically updated to 'Lost' status."
+    )
+  ) {
     aud.status = 'closed';
-    
+
     // TRANSITION RULE: Update missing assets to 'Lost'
-    aud.missingAssetIds.forEach(assetId => {
-      const asset = state.assets.find(a => a.id === assetId);
+    aud.missingAssetIds.forEach((assetId) => {
+      const asset = state.assets.find((a) => a.id === assetId);
       if (asset) asset.status = 'lost';
     });
 
     // Generate summary report
     aud.discrepancyText = `Audit closed. Verified: ${aud.verifiedAssetIds.length}. Missing (Transitioned to Lost): ${aud.missingAssetIds.length}. Damaged: ${aud.damagedAssetIds.length}.`;
-    
+
     // Log
     state.auditLogs.unshift({
       id: `l-${state.auditLogs.length + 1}`,
@@ -2554,25 +2858,27 @@ function closeAuditCycleTrigger() {
       id: `n-${state.notifications.length + 1}`,
       type: 'Audit Flagged',
       content: `Discrepancy Report generated for ${aud.title}. ${aud.missingAssetIds.length} missing items flagged.`,
-      date: formatLogDate(new Date()).split(' ')[0],
+      date: formatLogDate(new Date()).split(' ')[0] ?? '',
       isRead: false
     });
 
     saveState();
-    loadAuditChecklist(state.activeAuditCycleId);
+    if (state.activeAuditCycleId) {
+      loadAuditChecklist(state.activeAuditCycleId);
+    }
     renderAuditCycles();
-    showToast("Audit cycle locked and discrepancies processed!", "success");
+    showToast('Audit cycle locked and discrepancies processed!', 'success');
   }
 }
 
-function submitStartAudit() {
-  const title = document.getElementById('audit-title').value.trim();
-  const deptId = document.getElementById('audit-scope-dept').value;
-  const auditorId = document.getElementById('audit-auditor').value;
-  const start = document.getElementById('audit-start-date').value;
-  const end = document.getElementById('audit-end-date').value;
+function submitStartAudit(): void {
+  const title = getEl<HTMLInputElement>('audit-title').value.trim();
+  const deptId = getEl<HTMLSelectElement>('audit-scope-dept').value;
+  const auditorId = getEl<HTMLSelectElement>('audit-auditor').value;
+  const start = getEl<HTMLInputElement>('audit-start-date').value;
+  const end = getEl<HTMLInputElement>('audit-end-date').value;
 
-  const newAudit = {
+  state.audits.push({
     id: `au-${state.audits.length + 1}`,
     title,
     scopeDeptId: deptId,
@@ -2585,9 +2891,7 @@ function submitStartAudit() {
     missingAssetIds: [],
     damagedAssetIds: [],
     discrepancyText: 'Cycle configured. Checklist compiled.'
-  };
-
-  state.audits.push(newAudit);
+  });
 
   state.auditLogs.unshift({
     id: `l-${state.auditLogs.length + 1}`,
@@ -2601,26 +2905,25 @@ function submitStartAudit() {
   saveState();
   closeModal('modal-start-audit');
   loadAuditPage();
-  showToast(`Audit cycle scheduled successfully! Click to inspect.`, "success");
+  showToast('Audit cycle scheduled successfully! Click to inspect.', 'success');
 }
 
-
 // ================= PAGE 9: REPORTS & ANALYTICS =================
-function loadReportsPage() {
+function loadReportsPage(): void {
   renderReportsCharts();
   renderHeatmap();
-  
+
   // Render Idle assets warning table
-  const table = document.getElementById('table-reports-idle-assets');
+  const table = getElOrNull('table-reports-idle-assets');
   if (table) {
     table.innerHTML = '';
-    
+
     // Find assets with available status (sitting idle)
-    const idles = state.assets.filter(a => a.status === 'available');
+    const idles = state.assets.filter((a) => a.status === 'available');
     if (idles.length === 0) {
       table.innerHTML = `<tr><td style="color:var(--text-muted); text-align:center;">No idle assets. Perfect inventory turnover!</td></tr>`;
     } else {
-      idles.slice(0, 3).forEach(asset => {
+      idles.slice(0, 3).forEach((asset) => {
         table.innerHTML += `
           <tr>
             <td style="font-weight:600; padding:0.5rem 0;">${asset.name}</td>
@@ -2633,24 +2936,26 @@ function loadReportsPage() {
   }
 }
 
-function renderReportsCharts() {
+function renderReportsCharts(): void {
   const isDark = document.body.classList.contains('dark-mode');
   const textColor = isDark ? '#94A3B8' : '#64748B';
   const gridColor = isDark ? '#334155' : '#E2E8F0';
 
   // 1. Department Allocation Pie/Doughnut Chart
   if (charts.reportsDeptAlloc) charts.reportsDeptAlloc.destroy();
-  const ctx1 = document.getElementById('chart-reports-dept-alloc').getContext('2d');
+  const ctx1 = getCanvasContext('chart-reports-dept-alloc');
   charts.reportsDeptAlloc = new Chart(ctx1, {
     type: 'bar',
     data: {
       labels: ['Engineering', 'Marketing', 'HR', 'Finance', 'Operations'],
-      datasets: [{
-        label: 'Total Asset Valuation ($)',
-        data: [13498, 8399, 1299, 4500, 12500],
-        backgroundColor: ['#2563EB', '#3B82F6', '#10B981', '#F59E0B', '#EF4444'],
-        borderRadius: 6
-      }]
+      datasets: [
+        {
+          label: 'Total Asset Valuation ($)',
+          data: [13498, 8399, 1299, 4500, 12500],
+          backgroundColor: ['#2563EB', '#3B82F6', '#10B981', '#F59E0B', '#EF4444'],
+          borderRadius: 6
+        }
+      ]
     },
     options: {
       responsive: true,
@@ -2673,16 +2978,18 @@ function renderReportsCharts() {
 
   // 2. Maintenance Frequency Category Bar
   if (charts.reportsMaintFreq) charts.reportsMaintFreq.destroy();
-  const ctx2 = document.getElementById('chart-reports-maint-freq').getContext('2d');
+  const ctx2 = getCanvasContext('chart-reports-maint-freq');
   charts.reportsMaintFreq = new Chart(ctx2, {
     type: 'doughnut',
     data: {
       labels: ['Computers', 'Vehicles', 'Servers', 'AV Systems'],
-      datasets: [{
-        data: [15, 8, 30, 22],
-        backgroundColor: ['#3B82F6', '#10B981', '#EF4444', '#F59E0B'],
-        borderWidth: 0
-      }]
+      datasets: [
+        {
+          data: [15, 8, 30, 22],
+          backgroundColor: ['#3B82F6', '#10B981', '#EF4444', '#F59E0B'],
+          borderWidth: 0
+        }
+      ]
     },
     options: {
       responsive: true,
@@ -2698,19 +3005,21 @@ function renderReportsCharts() {
 
   // 3. Retirement Prediction Line Chart
   if (charts.reportsRetirement) charts.reportsRetirement.destroy();
-  const ctx3 = document.getElementById('chart-reports-retirement').getContext('2d');
+  const ctx3 = getCanvasContext('chart-reports-retirement');
   charts.reportsRetirement = new Chart(ctx3, {
     type: 'line',
     data: {
       labels: ['Jul 26', 'Oct 26', 'Jan 27', 'Apr 27'],
-      datasets: [{
-        label: 'Predictive Retirements',
-        data: [1, 2, 4, 3],
-        borderColor: '#F59E0B',
-        backgroundColor: 'transparent',
-        tension: 0.4,
-        borderWidth: 2
-      }]
+      datasets: [
+        {
+          label: 'Predictive Retirements',
+          data: [1, 2, 4, 3],
+          borderColor: '#F59E0B',
+          backgroundColor: 'transparent',
+          tension: 0.4,
+          borderWidth: 2
+        }
+      ]
     },
     options: {
       responsive: true,
@@ -2732,19 +3041,20 @@ function renderReportsCharts() {
   });
 }
 
-function renderHeatmap() {
-  const container = document.getElementById('analytics-heatmap');
+function renderHeatmap(): void {
+  const container = getElOrNull('analytics-heatmap');
   if (!container) return;
 
   container.innerHTML = '';
 
   const hoursLabels = ['09:00', '12:00', '15:00', '18:00'];
-  const labelsHtml = hoursLabels.map(label => `<span style="font-size:0.6rem; color:var(--text-muted);">${label}</span>`).join('');
+  const labelsHtml = hoursLabels.map((label) => `<span style="font-size:0.6rem; color:var(--text-muted);">${label}</span>`).join('');
+  void labelsHtml;
 
   // 5 rows representing meeting rooms / vehicles / equipment
   const rows = ['Conf Room A', 'Conf Room B', 'Tesla Fleet', 'Transit Van', 'AR Headset'];
 
-  rows.forEach(room => {
+  rows.forEach((room) => {
     // Generate simulated occupancy blocks for 24 hours of the day
     let blocksHtml = '';
     for (let h = 0; h < 24; h++) {
@@ -2769,26 +3079,26 @@ function renderHeatmap() {
   });
 }
 
-function triggerExport(format) {
-  showToast(`Simulating compilation export of all ERP tables to ${format}...`, "primary");
+function triggerExport(format: string): void {
+  showToast(`Simulating compilation export of all ERP tables to ${format}...`, 'primary');
   setTimeout(() => {
-    showToast(`Compiled report successfully downloaded: AssetFlow_Analytics_Report.${format.toLowerCase()}`, "success");
+    showToast(`Compiled report successfully downloaded: AssetFlow_Analytics_Report.${format.toLowerCase()}`, 'success');
   }, 1500);
 }
 
-
 // ================= PAGE 10: NOTIFICATIONS & AUDIT TRAIL =================
-function switchNotificationTab(e, tabId) {
-  e.target.parentNode.querySelectorAll('.tab-btn').forEach(btn => {
+function switchNotificationTab(e: MouseEvent, tabId: string): void {
+  const target = e.target as HTMLElement;
+  target.parentNode?.querySelectorAll('.tab-btn').forEach((btn) => {
     btn.classList.remove('active');
   });
-  e.target.classList.add('active');
+  target.classList.add('active');
 
-  const paneParent = e.target.closest('.page-section');
-  paneParent.querySelectorAll('.tab-pane').forEach(pane => {
+  const paneParent = target.closest('.page-section');
+  paneParent?.querySelectorAll('.tab-pane').forEach((pane) => {
     pane.classList.remove('active');
   });
-  document.getElementById(tabId).classList.add('active');
+  getEl(tabId).classList.add('active');
 
   if (tabId === 'tab-notif-inbox') {
     renderNotificationsPage();
@@ -2797,24 +3107,24 @@ function switchNotificationTab(e, tabId) {
   }
 }
 
-function renderNotificationsPage() {
-  const container = document.getElementById('notifications-inbox-list');
+function renderNotificationsPage(): void {
+  const container = getElOrNull('notifications-inbox-list');
   if (!container) return;
 
-  const typeFilter = document.getElementById('notif-filter-type').value;
+  const typeFilter = getEl<HTMLSelectElement>('notif-filter-type').value;
   container.innerHTML = '';
 
-  const filtered = state.notifications.filter(n => !typeFilter || n.type === typeFilter);
+  const filtered = state.notifications.filter((n) => !typeFilter || n.type === typeFilter);
 
   if (filtered.length === 0) {
     container.innerHTML = `<div class="empty-state"><h3>Inbox is Empty</h3><p>No system notifications recorded.</p></div>`;
     return;
   }
 
-  filtered.forEach(n => {
+  filtered.forEach((n) => {
     let icon = 'bell';
     let iconColor = 'var(--primary)';
-    
+
     if (n.type === 'Overdue Return' || n.type === 'Audit Flagged') {
       icon = 'alert-triangle';
       iconColor = 'var(--danger)';
@@ -2845,8 +3155,8 @@ function renderNotificationsPage() {
   lucide.createIcons();
 }
 
-function markNotificationRead(id) {
-  const notif = state.notifications.find(n => n.id === id);
+function markNotificationRead(id: string): void {
+  const notif = state.notifications.find((n) => n.id === id);
   if (notif) {
     notif.isRead = true;
     saveState();
@@ -2855,25 +3165,25 @@ function markNotificationRead(id) {
   }
 }
 
-function markAllNotificationsAsRead() {
-  state.notifications.forEach(n => n.isRead = true);
+function markAllNotificationsAsRead(): void {
+  state.notifications.forEach((n) => (n.isRead = true));
   saveState();
   renderNotificationsPage();
   updateGlobalUnreadIndicators();
-  showToast("All notifications flagged as read.", "success");
+  showToast('All notifications flagged as read.', 'success');
 }
 
-function updateGlobalUnreadIndicators() {
-  const unreadCount = state.notifications.filter(n => !n.isRead).length;
-  
-  const navDot = document.getElementById('nav-unread-dot');
-  const sidebarIndicator = document.getElementById('sidebar-unread-indicator');
+function updateGlobalUnreadIndicators(): void {
+  const unreadCount = state.notifications.filter((n) => !n.isRead).length;
+
+  const navDot = getElOrNull('nav-unread-dot');
+  const sidebarIndicator = getElOrNull('sidebar-unread-indicator');
 
   if (unreadCount > 0) {
     if (navDot) navDot.style.display = 'block';
     if (sidebarIndicator) {
       sidebarIndicator.style.display = 'inline-flex';
-      sidebarIndicator.textContent = unreadCount;
+      sidebarIndicator.textContent = String(unreadCount);
       sidebarIndicator.style.backgroundColor = 'var(--danger)';
       sidebarIndicator.style.color = 'white';
       sidebarIndicator.style.fontSize = '0.7rem';
@@ -2887,17 +3197,18 @@ function updateGlobalUnreadIndicators() {
   }
 }
 
-function renderAuditLogs() {
-  const tbody = document.getElementById('audit-logs-table-body');
+function renderAuditLogs(): void {
+  const tbody = getElOrNull('audit-logs-table-body');
   if (!tbody) return;
 
-  const search = document.getElementById('audit-log-search').value.toLowerCase();
+  const search = getEl<HTMLInputElement>('audit-log-search').value.toLowerCase();
   tbody.innerHTML = '';
 
-  const filtered = state.auditLogs.filter(log => 
-    log.operator.toLowerCase().includes(search) || 
-    log.details.toLowerCase().includes(search) ||
-    log.entityType.toLowerCase().includes(search)
+  const filtered = state.auditLogs.filter(
+    (log) =>
+      log.operator.toLowerCase().includes(search) ||
+      log.details.toLowerCase().includes(search) ||
+      log.entityType.toLowerCase().includes(search)
   );
 
   if (filtered.length === 0) {
@@ -2905,7 +3216,7 @@ function renderAuditLogs() {
     return;
   }
 
-  filtered.forEach(log => {
+  filtered.forEach((log) => {
     let actionBadge = 'badge-available';
     if (log.action === 'ASSIGN') actionBadge = 'badge-allocated';
     if (log.action === 'MAINTENANCE') actionBadge = 'badge-maintenance';
@@ -2923,29 +3234,28 @@ function renderAuditLogs() {
   });
 }
 
-
 // ================= SYSTEM SETTINGS CONTROLLERS =================
-function loadSettingsPage() {
+function loadSettingsPage(): void {
   if (state.currentUser) {
-    document.getElementById('settings-fullname').value = state.currentUser.name;
-    document.getElementById('settings-email').value = state.currentUser.email;
-    
-    const dept = state.departments.find(d => d.id === state.currentUser.departmentId);
-    document.getElementById('settings-dept').value = dept ? dept.name : 'Corporate Management';
-    document.getElementById('settings-role').value = formatRoleName(state.currentUser.role);
+    getEl<HTMLInputElement>('settings-fullname').value = state.currentUser.name;
+    getEl<HTMLInputElement>('settings-email').value = state.currentUser.email;
+
+    const dept = state.departments.find((d) => d.id === state.currentUser?.departmentId);
+    getEl<HTMLInputElement>('settings-dept').value = dept ? dept.name : 'Corporate Management';
+    getEl<HTMLInputElement>('settings-role').value = formatRoleName(state.currentUser.role);
   }
-  document.getElementById('settings-strict-booking').checked = state.strictBooking;
+  getEl<HTMLInputElement>('settings-strict-booking').checked = state.strictBooking;
 }
 
-function saveUserSettings() {
-  const name = document.getElementById('settings-fullname').value.trim();
-  const strict = document.getElementById('settings-strict-booking').checked;
+function saveUserSettings(): void {
+  const name = getEl<HTMLInputElement>('settings-fullname').value.trim();
+  const strict = getEl<HTMLInputElement>('settings-strict-booking').checked;
 
   if (state.currentUser) {
     state.currentUser.name = name;
-    
+
     // Sync back name inside Employee directory database
-    const emp = state.employees.find(e => e.id === state.currentUser.id);
+    const emp = state.employees.find((e) => e.id === state.currentUser?.id);
     if (emp) emp.name = name;
 
     state.strictBooking = strict;
@@ -2961,58 +3271,60 @@ function saveUserSettings() {
 
     saveState();
     loadSettingsPage();
-    
-    // Update navbar indicators
-    document.getElementById('navbar-user-name').textContent = name;
-    document.getElementById('dropdown-user-name').textContent = name;
-    document.getElementById('user-avatar-initials').textContent = name.split(' ').map(n=>n[0]).join('');
 
-    showToast("User details successfully saved!", "success");
+    // Update navbar indicators
+    getEl('navbar-user-name').textContent = name;
+    getEl('dropdown-user-name').textContent = name;
+    getEl('user-avatar-initials').textContent = name
+      .split(' ')
+      .map((n) => n[0])
+      .join('');
+
+    showToast('User details successfully saved!', 'success');
   }
 }
 
-
 // ================= GLOBAL SEARCH MANAGER =================
-function handleGlobalSearch(query) {
+function handleGlobalSearch(query: string): void {
   const cleanQuery = query.trim().toLowerCase();
   if (!cleanQuery) return;
 
   // Let's filter the items based on which page is active to be most intuitive!
   const activeSection = document.querySelector('.page-section.active');
+  if (!activeSection) return;
   const pageId = activeSection.id.replace('page-', '');
 
   if (pageId === 'assets') {
-    document.getElementById('asset-search').value = query;
+    getEl<HTMLInputElement>('asset-search').value = query;
     renderAssets();
   } else if (pageId === 'allocation') {
-    document.getElementById('alloc-search').value = query;
+    getEl<HTMLInputElement>('alloc-search').value = query;
     renderAllocations();
   } else if (pageId === 'maintenance') {
-    document.getElementById('maint-search').value = query;
+    getEl<HTMLInputElement>('maint-search').value = query;
     renderMaintenance();
   } else if (pageId === 'org-setup') {
-    const activeTab = document.querySelector('#page-org-setup .tab-btn.active').textContent;
+    const activeTab = document.querySelector('#page-org-setup .tab-btn.active')?.textContent ?? '';
     if (activeTab.includes('Department')) {
-      document.getElementById('dept-search').value = query;
+      getEl<HTMLInputElement>('dept-search').value = query;
       renderDepartments();
     } else if (activeTab.includes('Employee')) {
-      document.getElementById('emp-search').value = query;
+      getEl<HTMLInputElement>('emp-search').value = query;
       renderEmployees();
     }
   }
 }
 
-
 // ================= DETAIL DRAWER INTERACTIONS =================
-let activeDrawerAssetId = null;
+let activeDrawerAssetId: string | null = null;
 
-function openAssetDetailDrawer(assetId) {
-  const asset = state.assets.find(a => a.id === assetId);
+function openAssetDetailDrawer(assetId: string): void {
+  const asset = state.assets.find((a) => a.id === assetId);
   if (!asset) return;
 
   activeDrawerAssetId = assetId;
 
-  const cat = state.categories.find(c => c.id === asset.categoryId);
+  const cat = state.categories.find((c) => c.id === asset.categoryId);
   const catName = cat ? cat.name : 'Device';
 
   // Badge mapping
@@ -3024,21 +3336,21 @@ function openAssetDetailDrawer(assetId) {
   if (asset.status === 'retired') badgeClass = 'badge-retired';
   if (asset.status === 'disposed') badgeClass = 'badge-disposed';
 
-  document.getElementById('drawer-asset-status').textContent = asset.status;
-  document.getElementById('drawer-asset-status').className = `badge ${badgeClass}`;
-  document.getElementById('drawer-asset-name').textContent = asset.name;
-  document.getElementById('drawer-asset-tag').textContent = `Tag: ${asset.assetTag}`;
-  document.getElementById('drawer-asset-serial').textContent = asset.serial;
-  document.getElementById('drawer-asset-category').textContent = catName;
-  document.getElementById('drawer-asset-date').textContent = asset.acquireDate;
-  document.getElementById('drawer-asset-cost').textContent = `$${asset.cost.toLocaleString()}`;
-  document.getElementById('drawer-asset-condition').textContent = asset.condition;
-  document.getElementById('drawer-asset-location').textContent = asset.location;
-  document.getElementById('drawer-asset-warranty').textContent = asset.warrantyField || 'Indefinite';
-  document.getElementById('drawer-asset-bookable').textContent = asset.isBookable ? 'Yes (Bookable)' : 'No (Assigned Only)';
+  getEl('drawer-asset-status').textContent = asset.status;
+  getEl('drawer-asset-status').className = `badge ${badgeClass}`;
+  getEl('drawer-asset-name').textContent = asset.name;
+  getEl('drawer-asset-tag').textContent = `Tag: ${asset.assetTag}`;
+  getEl('drawer-asset-serial').textContent = asset.serial;
+  getEl('drawer-asset-category').textContent = catName;
+  getEl('drawer-asset-date').textContent = asset.acquireDate;
+  getEl('drawer-asset-cost').textContent = `$${asset.cost.toLocaleString()}`;
+  getEl('drawer-asset-condition').textContent = asset.condition;
+  getEl('drawer-asset-location').textContent = asset.location;
+  getEl('drawer-asset-warranty').textContent = asset.warrantyField || 'Indefinite';
+  getEl('drawer-asset-bookable').textContent = asset.isBookable ? 'Yes (Bookable)' : 'No (Assigned Only)';
 
   // Build simulated QR Code SVG icon
-  const qrContainer = document.getElementById('drawer-qr-container');
+  const qrContainer = getEl('drawer-qr-container');
   qrContainer.innerHTML = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <rect width="5" height="5" x="3" y="3" rx="1"/>
@@ -3055,15 +3367,15 @@ function openAssetDetailDrawer(assetId) {
   `;
 
   // Draw logs/history in drawer panels
-  const timelineAlloc = document.getElementById('drawer-timeline-alloc');
+  const timelineAlloc = getEl('drawer-timeline-alloc');
   timelineAlloc.innerHTML = '';
-  
-  const allocs = state.allocations.filter(al => al.assetId === asset.id);
+
+  const allocs = state.allocations.filter((al) => al.assetId === asset.id);
   if (allocs.length === 0) {
     timelineAlloc.innerHTML = `<span style="font-size:0.75rem; color:var(--text-muted);">No allocation histories recorded.</span>`;
   } else {
-    allocs.forEach(al => {
-      const emp = state.employees.find(e => e.id === al.employeeId);
+    allocs.forEach((al) => {
+      const emp = state.employees.find((e) => e.id === al.employeeId);
       const isReturned = al.status === 'returned';
       timelineAlloc.innerHTML += `
         <div class="timeline-item">
@@ -3076,14 +3388,14 @@ function openAssetDetailDrawer(assetId) {
     });
   }
 
-  const timelineMaint = document.getElementById('drawer-timeline-maint');
+  const timelineMaint = getEl('drawer-timeline-maint');
   timelineMaint.innerHTML = '';
-  
-  const maints = state.maintenance.filter(m => m.assetId === asset.id);
+
+  const maints = state.maintenance.filter((m) => m.assetId === asset.id);
   if (maints.length === 0) {
     timelineMaint.innerHTML = `<span style="font-size:0.75rem; color:var(--text-muted);">No maintenance tickets filed.</span>`;
   } else {
-    maints.forEach(m => {
+    maints.forEach((m) => {
       const isResolved = m.status === 'resolved';
       timelineMaint.innerHTML += `
         <div class="timeline-item">
@@ -3097,7 +3409,7 @@ function openAssetDetailDrawer(assetId) {
   }
 
   // Handle drawer action buttons based on status
-  const allocBtn = document.getElementById('drawer-allocation-action-btn');
+  const allocBtn = getEl('drawer-allocation-action-btn');
   if (asset.status !== 'available') {
     allocBtn.style.display = 'none';
   } else {
@@ -3107,84 +3419,99 @@ function openAssetDetailDrawer(assetId) {
   openDrawer('drawer-asset-details');
 }
 
-function switchDrawerTab(e, tabId) {
-  e.target.parentNode.querySelectorAll('.tab-btn').forEach(btn => {
+function switchDrawerTab(e: MouseEvent, tabId: string): void {
+  const target = e.target as HTMLElement;
+  target.parentNode?.querySelectorAll('.tab-btn').forEach((btn) => {
     btn.classList.remove('active');
   });
-  e.target.classList.add('active');
+  target.classList.add('active');
 
-  const paneParent = e.target.parentNode.parentNode;
-  paneParent.querySelectorAll('.tab-pane').forEach(pane => {
+  const paneParent = (target.parentNode as HTMLElement | null)?.parentNode as HTMLElement | undefined;
+  paneParent?.querySelectorAll('.tab-pane').forEach((pane) => {
     pane.classList.remove('active');
   });
-  document.getElementById(tabId).classList.add('active');
+  getEl(tabId).classList.add('active');
 }
 
-function triggerMaintRequestFromDrawer() {
+function triggerMaintRequestFromDrawer(): void {
   if (!activeDrawerAssetId) return;
   closeDrawer('drawer-asset-details');
   openMaintenanceModal();
-  document.getElementById('maint-asset-select').value = activeDrawerAssetId;
+  getEl<HTMLSelectElement>('maint-asset-select').value = activeDrawerAssetId;
 }
 
-function triggerAllocationFromDrawer() {
+function triggerAllocationFromDrawer(): void {
   if (!activeDrawerAssetId) return;
   closeDrawer('drawer-asset-details');
   openAllocateAssetModal();
-  document.getElementById('alloc-asset-select').value = activeDrawerAssetId;
+  getEl<HTMLSelectElement>('alloc-asset-select').value = activeDrawerAssetId;
 }
 
 // ================= QR SIMULATOR LOGIC =================
-function executeQrScanSearch() {
-  const assetId = document.getElementById('qr-simulate-select').value;
+function executeQrScanSearch(): void {
+  const assetId = getEl<HTMLSelectElement>('qr-simulate-select').value;
   closeModal('modal-qr-scan');
-  
+
   // Directly open drawer details
   openAssetDetailDrawer(assetId);
-  showToast("QR scan matching catalog tag detected!", "success");
+  showToast('QR scan matching catalog tag detected!', 'success');
 }
-
 
 // ================= MODAL & DRAWER HELPER HANDLERS =================
-function openModal(modalId) {
-  document.getElementById(modalId).classList.add('show');
+function openModal(modalId: string): void {
+  getEl(modalId).classList.add('show');
 }
 
-function closeModal(modalId) {
-  document.getElementById(modalId).classList.remove('show');
+function closeModal(modalId: string): void {
+  getEl(modalId).classList.remove('show');
 }
 
-function openDrawer(drawerId) {
-  document.getElementById(drawerId).classList.add('show');
+function openDrawer(drawerId: string): void {
+  getEl(drawerId).classList.add('show');
 }
 
-function closeDrawer(drawerId) {
-  document.getElementById(drawerId).classList.remove('show');
+function closeDrawer(drawerId: string): void {
+  getEl(drawerId).classList.remove('show');
 }
 
-function closeDrawerIfOverlay(e, drawerId) {
-  if (e.target.id === drawerId) {
+function closeDrawerIfOverlay(e: MouseEvent, drawerId: string): void {
+  if ((e.target as HTMLElement).id === drawerId) {
     closeDrawer(drawerId);
   }
 }
 
 // Quick action launchers
-function openQuickActionModal() { openModal('modal-quick-action'); }
-function openRegisterAssetModal() { openModal('modal-register-asset'); }
-function openAllocateAssetModal() { 
-  openModal('modal-allocate-asset'); 
+function openQuickActionModal(): void {
+  openModal('modal-quick-action');
+}
+function openRegisterAssetModal(): void {
+  openModal('modal-register-asset');
+}
+function openAllocateAssetModal(): void {
+  openModal('modal-allocate-asset');
   loadAllocationsPage(); // reload selectors
 }
-function openBookResourceModal() { openModal('modal-book-resource'); }
-function openMaintenanceModal() { openModal('modal-maintenance-request'); }
-function openQrScanModal() { openModal('modal-qr-scan'); }
-function openStartAuditModal() { openModal('modal-start-audit'); }
-function openAddDeptModal() { openModal('modal-add-dept'); }
-function openAddCategoryModal() { openModal('modal-add-category'); }
-
+function openBookResourceModal(): void {
+  openModal('modal-book-resource');
+}
+function openMaintenanceModal(): void {
+  openModal('modal-maintenance-request');
+}
+function openQrScanModal(): void {
+  openModal('modal-qr-scan');
+}
+function openStartAuditModal(): void {
+  openModal('modal-start-audit');
+}
+function openAddDeptModal(): void {
+  openModal('modal-add-dept');
+}
+function openAddCategoryModal(): void {
+  openModal('modal-add-category');
+}
 
 // ================= UTILITIES & HELPERS =================
-function formatRoleName(role) {
+function formatRoleName(role: Role): string {
   if (window.AssetFlow && window.AssetFlow.isRole(role)) {
     return window.AssetFlow.formatRoleName(role);
   }
@@ -3196,12 +3523,12 @@ function formatRoleName(role) {
   return role;
 }
 
-function formatLogDate(date) {
+function formatLogDate(date: Date): string {
   if (window.AssetFlow) {
     return window.AssetFlow.formatLogDate(date);
   }
 
-  const pad = (n) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(2, '0');
   const y = date.getFullYear();
   const m = pad(date.getMonth() + 1);
   const d = pad(date.getDate());
@@ -3210,10 +3537,10 @@ function formatLogDate(date) {
   return `${y}-${m}-${d} ${h}:${min}`;
 }
 
-function toggleSidebarCollapse() {
-  const sidebar = document.getElementById('app-sidebar');
-  const workspace = document.getElementById('main-workspace');
-  
+function toggleSidebarCollapse(): void {
+  const sidebar = getEl('app-sidebar');
+  const workspace = getEl('main-workspace');
+
   if (sidebar.style.left === '0px' || sidebar.style.left === '') {
     sidebar.style.left = '-260px';
     workspace.style.marginLeft = '0px';
@@ -3225,8 +3552,8 @@ function toggleSidebarCollapse() {
 
 // Handle responsive sidebar states automatically on load
 window.addEventListener('resize', () => {
-  const sidebar = document.getElementById('app-sidebar');
-  const workspace = document.getElementById('main-workspace');
+  const sidebar = getEl('app-sidebar');
+  const workspace = getEl('main-workspace');
   if (window.innerWidth > 900) {
     sidebar.style.left = '0px';
     workspace.style.marginLeft = '260px';
@@ -3235,7 +3562,6 @@ window.addEventListener('resize', () => {
     workspace.style.marginLeft = '0px';
   }
 });
-
 
 // ================= APPLICATION INITIALIZER =================
 window.addEventListener('DOMContentLoaded', () => {
@@ -3247,16 +3573,178 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // If session active skip auth screen (in practice)
   // For safety, force auth screen to verify login layout works
-  document.getElementById('auth-screen').style.display = 'flex';
-  document.getElementById('app-shell').style.display = 'none';
+  getEl('auth-screen').style.display = 'flex';
+  getEl('app-shell').style.display = 'none';
 
   // Seed default dates on form inputs
-  const today = new Date().toISOString().split('T')[0];
-  const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  
-  if (document.getElementById('reg-date')) document.getElementById('reg-date').value = today;
-  if (document.getElementById('book-date')) document.getElementById('book-date').value = today;
-  if (document.getElementById('audit-start-date')) document.getElementById('audit-start-date').value = today;
-  if (document.getElementById('audit-end-date')) document.getElementById('audit-end-date').value = nextWeek;
-  if (document.getElementById('assign-tech-deadline')) document.getElementById('assign-tech-deadline').value = nextWeek;
+  const today = new Date().toISOString().split('T')[0] ?? '';
+  const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] ?? '';
+
+  const regDate = getElOrNull<HTMLInputElement>('reg-date');
+  if (regDate) regDate.value = today;
+  const bookDate = getElOrNull<HTMLInputElement>('book-date');
+  if (bookDate) bookDate.value = today;
+  const auditStartDate = getElOrNull<HTMLInputElement>('audit-start-date');
+  if (auditStartDate) auditStartDate.value = today;
+  const auditEndDate = getElOrNull<HTMLInputElement>('audit-end-date');
+  if (auditEndDate) auditEndDate.value = nextWeek;
+  const assignTechDeadline = getElOrNull<HTMLInputElement>('assign-tech-deadline');
+  if (assignTechDeadline) assignTechDeadline.value = nextWeek;
+
+  // Bind the Forget Password reset-view password visibility toggles
+  bindPasswordToggle('fp-new-password-toggle', 'fp-new-password');
+  bindPasswordToggle('fp-confirm-password-toggle', 'fp-confirm-password');
+});
+
+// ================= GLOBAL EXPOSURE (for inline HTML event handlers) =================
+declare global {
+  interface Window {
+    navigate: typeof navigate;
+    showToast: typeof showToast;
+    toggleTheme: typeof toggleTheme;
+    toggleAuthPanel: typeof toggleAuthPanel;
+    handleLogin: typeof handleLogin;
+    handleSignup: typeof handleSignup;
+    submitForgetPasswordEmail: typeof submitForgetPasswordEmail;
+    submitVerifyOtp: typeof submitVerifyOtp;
+    submitResetPassword: typeof submitResetPassword;
+    handleLogout: typeof handleLogout;
+    changeActiveRole: typeof changeActiveRole;
+    toggleOrgDropdown: typeof toggleOrgDropdown;
+    toggleProfileDropdown: typeof toggleProfileDropdown;
+    switchSetupTab: typeof switchSetupTab;
+    toggleDeptStatus: typeof toggleDeptStatus;
+    handleEmpPageChange: typeof handleEmpPageChange;
+    promoteEmployee: typeof promoteEmployee;
+    toggleEmployeeStatus: typeof toggleEmployeeStatus;
+    submitAddDept: typeof submitAddDept;
+    submitAddCategory: typeof submitAddCategory;
+    switchAssetView: typeof switchAssetView;
+    submitRegisterAsset: typeof submitRegisterAsset;
+    updateAllocEmployeeDropdown: typeof updateAllocEmployeeDropdown;
+    submitAllocateAsset: typeof submitAllocateAsset;
+    executeTransferRequest: typeof executeTransferRequest;
+    processTransferApproval: typeof processTransferApproval;
+    openReturnModal: typeof openReturnModal;
+    submitReturnAsset: typeof submitReturnAsset;
+    switchBookingLayout: typeof switchBookingLayout;
+    adjustCalendarMonth: typeof adjustCalendarMonth;
+    selectBookingResourceTab: typeof selectBookingResourceTab;
+    submitBookResource: typeof submitBookResource;
+    cancelBooking: typeof cancelBooking;
+    openBookingInspector: typeof openBookingInspector;
+    switchMaintView: typeof switchMaintView;
+    submitMaintenanceRequest: typeof submitMaintenanceRequest;
+    approveMaintenanceTicket: typeof approveMaintenanceTicket;
+    openAssignTechModal: typeof openAssignTechModal;
+    submitAssignTechnician: typeof submitAssignTechnician;
+    advanceMaintenanceStatus: typeof advanceMaintenanceStatus;
+    showMaintDetailsSummary: typeof showMaintDetailsSummary;
+    closeAuditCycleTrigger: typeof closeAuditCycleTrigger;
+    submitStartAudit: typeof submitStartAudit;
+    loadAuditChecklist: typeof loadAuditChecklist;
+    markAuditAsset: typeof markAuditAsset;
+    triggerExport: typeof triggerExport;
+    switchNotificationTab: typeof switchNotificationTab;
+    markNotificationRead: typeof markNotificationRead;
+    markAllNotificationsAsRead: typeof markAllNotificationsAsRead;
+    switchDrawerTab: typeof switchDrawerTab;
+    triggerMaintRequestFromDrawer: typeof triggerMaintRequestFromDrawer;
+    triggerAllocationFromDrawer: typeof triggerAllocationFromDrawer;
+    executeQrScanSearch: typeof executeQrScanSearch;
+    openAssetDetailDrawer: typeof openAssetDetailDrawer;
+    openModal: typeof openModal;
+    closeModal: typeof closeModal;
+    openDrawer: typeof openDrawer;
+    closeDrawer: typeof closeDrawer;
+    closeDrawerIfOverlay: typeof closeDrawerIfOverlay;
+    openQuickActionModal: typeof openQuickActionModal;
+    openRegisterAssetModal: typeof openRegisterAssetModal;
+    openAllocateAssetModal: typeof openAllocateAssetModal;
+    openBookResourceModal: typeof openBookResourceModal;
+    openMaintenanceModal: typeof openMaintenanceModal;
+    openQrScanModal: typeof openQrScanModal;
+    openStartAuditModal: typeof openStartAuditModal;
+    openAddDeptModal: typeof openAddDeptModal;
+    openAddCategoryModal: typeof openAddCategoryModal;
+    handleGlobalSearch: typeof handleGlobalSearch;
+    toggleSidebarCollapse: typeof toggleSidebarCollapse;
+    saveUserSettings: typeof saveUserSettings;
+    resetAppDatabase: typeof resetAppDatabase;
+  }
+}
+
+Object.assign(window, {
+  navigate,
+  showToast,
+  toggleTheme,
+  toggleAuthPanel,
+  handleLogin,
+  handleSignup,
+  submitForgetPasswordEmail,
+  submitVerifyOtp,
+  submitResetPassword,
+  handleLogout,
+  changeActiveRole,
+  toggleOrgDropdown,
+  toggleProfileDropdown,
+  switchSetupTab,
+  toggleDeptStatus,
+  handleEmpPageChange,
+  promoteEmployee,
+  toggleEmployeeStatus,
+  submitAddDept,
+  submitAddCategory,
+  switchAssetView,
+  submitRegisterAsset,
+  updateAllocEmployeeDropdown,
+  submitAllocateAsset,
+  executeTransferRequest,
+  processTransferApproval,
+  openReturnModal,
+  submitReturnAsset,
+  switchBookingLayout,
+  adjustCalendarMonth,
+  selectBookingResourceTab,
+  submitBookResource,
+  cancelBooking,
+  openBookingInspector,
+  switchMaintView,
+  submitMaintenanceRequest,
+  approveMaintenanceTicket,
+  openAssignTechModal,
+  submitAssignTechnician,
+  advanceMaintenanceStatus,
+  showMaintDetailsSummary,
+  closeAuditCycleTrigger,
+  submitStartAudit,
+  loadAuditChecklist,
+  markAuditAsset,
+  triggerExport,
+  switchNotificationTab,
+  markNotificationRead,
+  markAllNotificationsAsRead,
+  switchDrawerTab,
+  triggerMaintRequestFromDrawer,
+  triggerAllocationFromDrawer,
+  executeQrScanSearch,
+  openAssetDetailDrawer,
+  openModal,
+  closeModal,
+  openDrawer,
+  closeDrawer,
+  closeDrawerIfOverlay,
+  openQuickActionModal,
+  openRegisterAssetModal,
+  openAllocateAssetModal,
+  openBookResourceModal,
+  openMaintenanceModal,
+  openQrScanModal,
+  openStartAuditModal,
+  openAddDeptModal,
+  openAddCategoryModal,
+  handleGlobalSearch,
+  toggleSidebarCollapse,
+  saveUserSettings,
+  resetAppDatabase
 });
